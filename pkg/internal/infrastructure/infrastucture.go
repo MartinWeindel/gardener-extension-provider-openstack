@@ -32,7 +32,7 @@ func CleanupKubernetesRoutes(ctx context.Context, client openstackclient.Network
 		return err
 	}
 
-	if len(router) == 0 {
+	if router == nil {
 		return nil
 	}
 
@@ -42,7 +42,7 @@ func CleanupKubernetesRoutes(ctx context.Context, client openstackclient.Network
 		return err
 	}
 
-	for _, route := range router[0].Routes {
+	for _, route := range router.Routes {
 		ipNode, _, err := net.ParseCIDR(route.NextHop + "/32")
 		if err != nil {
 			return err

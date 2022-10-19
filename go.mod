@@ -20,6 +20,7 @@ require (
 	github.com/onsi/gomega v1.20.0
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
+	go.uber.org/atomic v1.7.0
 	golang.org/x/tools v0.1.12
 	k8s.io/api v0.25.0
 	k8s.io/apiextensions-apiserver v0.25.0
@@ -109,7 +110,6 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.0.0-20220516162934-403b01795ae8 // indirect
