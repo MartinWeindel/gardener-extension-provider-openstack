@@ -116,6 +116,7 @@ type Networking interface {
 	// Network
 	CreateNetwork(opts networks.CreateOpts) (*networks.Network, error)
 	ListNetwork(listOpts networks.ListOpts) ([]networks.Network, error)
+	UpdateNetwork(networkID string, opts networks.UpdateOpts) (*networks.Network, error)
 	GetNetworkByName(name string) ([]networks.Network, error)
 	DeleteNetwork(networkID string) error
 	// FloatingIP
@@ -137,6 +138,7 @@ type Networking interface {
 	GetRouterByID(id string) (*routers.Router, error)
 	ListRouters(listOpts routers.ListOpts) ([]routers.Router, error)
 	UpdateRoutesForRouter(routes []routers.Route, routerID string) (*routers.Router, error)
+	UpdateRouter(routerID string, updateOpts routers.UpdateOpts) (*routers.Router, error)
 	CreateRouter(createOpts routers.CreateOpts) (*routers.Router, error)
 	DeleteRouter(routerID string) error
 	AddRouterInterface(routerID string, addOpts routers.AddInterfaceOpts) (*routers.InterfaceInfo, error)

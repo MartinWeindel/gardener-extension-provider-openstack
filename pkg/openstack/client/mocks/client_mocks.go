@@ -924,6 +924,36 @@ func (mr *MockNetworkingMockRecorder) RemoveRouterInterface(arg0, arg1 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveRouterInterface", reflect.TypeOf((*MockNetworking)(nil).RemoveRouterInterface), arg0, arg1)
 }
 
+// UpdateNetwork mocks base method.
+func (m *MockNetworking) UpdateNetwork(arg0 string, arg1 networks.UpdateOpts) (*networks.Network, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateNetwork", arg0, arg1)
+	ret0, _ := ret[0].(*networks.Network)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateNetwork indicates an expected call of UpdateNetwork.
+func (mr *MockNetworkingMockRecorder) UpdateNetwork(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetwork", reflect.TypeOf((*MockNetworking)(nil).UpdateNetwork), arg0, arg1)
+}
+
+// UpdateRouter mocks base method.
+func (m *MockNetworking) UpdateRouter(arg0 string, arg1 routers.UpdateOpts) (*routers.Router, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateRouter", arg0, arg1)
+	ret0, _ := ret[0].(*routers.Router)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateRouter indicates an expected call of UpdateRouter.
+func (mr *MockNetworkingMockRecorder) UpdateRouter(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRouter", reflect.TypeOf((*MockNetworking)(nil).UpdateRouter), arg0, arg1)
+}
+
 // UpdateRoutesForRouter mocks base method.
 func (m *MockNetworking) UpdateRoutesForRouter(arg0 []routers.Route, arg1 string) (*routers.Router, error) {
 	m.ctrl.T.Helper()

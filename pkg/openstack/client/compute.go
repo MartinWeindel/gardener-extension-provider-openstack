@@ -154,6 +154,7 @@ func (c *ComputeClient) ListImages(listOpts images.ListOpts) ([]images.Image, er
 	return images.ExtractImages(allPages)
 }
 
+// CreateKeyPair creates an SSH key pair
 func (c *ComputeClient) CreateKeyPair(name, publicKey string) (*keypairs.KeyPair, error) {
 	opts := keypairs.CreateOpts{
 		Name:      name,
@@ -162,11 +163,13 @@ func (c *ComputeClient) CreateKeyPair(name, publicKey string) (*keypairs.KeyPair
 	return keypairs.Create(c.client, opts).Extract()
 }
 
+// GetKeyPair gets an SSH key pair by name
 func (c *ComputeClient) GetKeyPair(name string) (*keypairs.KeyPair, error) {
 	keypair, err := keypairs.Get(c.client, name).Extract()
 	return keypair, IgnoreNotFoundError(err)
 }
 
+// DeleteKeyPair deletes an SSH key pair by name
 func (c *ComputeClient) DeleteKeyPair(name string) error {
 	return keypairs.Delete(c.client, name).ExtractErr()
 }

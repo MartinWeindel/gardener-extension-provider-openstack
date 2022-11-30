@@ -268,7 +268,7 @@ func IsValidValue(value string) bool {
 	return value != "" && value != deleted
 }
 
-// IsValidValue returns the value if the exported value is valid, otherwise an empty string.
+// ValidValue returns the value if the exported value is valid, otherwise an empty string.
 func ValidValue(value string) string {
 	if !IsValidValue(value) {
 		return ""

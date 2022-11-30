@@ -65,6 +65,7 @@ func (c *NetworkingClient) listExternalNetworks(listOpts networks.ListOptsBuilde
 	return externalNetworks, nil
 }
 
+// GetExternalNetworkByName returns an external network by name
 func (c *NetworkingClient) GetExternalNetworkByName(name string) (*networks.Network, error) {
 	externalNetworks, err := c.listExternalNetworks(networks.ListOpts{Name: name})
 	if err != nil {
@@ -86,6 +87,11 @@ func (c *NetworkingClient) ListNetwork(listOpts networks.ListOpts) ([]networks.N
 		return nil, err
 	}
 	return networks.ExtractNetworks(pages)
+}
+
+// UpdateNetwork updates settings of a network resource
+func (c *NetworkingClient) UpdateNetwork(networkID string, opts networks.UpdateOpts) (*networks.Network, error) {
+	return networks.Update(c.client, networkID, opts).Extract()
 }
 
 // GetNetworkByName return a network info by name
@@ -190,7 +196,7 @@ func (c *NetworkingClient) GetSecurityGroup(groupID string) (*groups.SecGroup, e
 	return groups.Get(c.client, groupID).Extract()
 }
 
-// CreateRouters creates a router
+// CreateRouter creates a router
 func (c *NetworkingClient) CreateRouter(createOpts routers.CreateOpts) (*routers.Router, error) {
 	return routers.Create(c.client, createOpts).Extract()
 }
@@ -213,15 +219,22 @@ func (c *NetworkingClient) UpdateRoutesForRouter(routes []routers.Route, routerI
 	return routers.Update(c.client, routerID, updateOpts).Extract()
 }
 
+// UpdateRouter updates router settings
+func (c *NetworkingClient) UpdateRouter(routerID string, updateOpts routers.UpdateOpts) (*routers.Router, error) {
+	return routers.Update(c.client, routerID, updateOpts).Extract()
+}
+
 // DeleteRouter deletes a router by identifier
 func (c *NetworkingClient) DeleteRouter(routerID string) error {
 	return routers.Delete(c.client, routerID).ExtractErr()
 }
 
+// AddRouterInterface adds a router interface
 func (c *NetworkingClient) AddRouterInterface(routerID string, addOpts routers.AddInterfaceOpts) (*routers.InterfaceInfo, error) {
 	return routers.AddInterface(c.client, routerID, addOpts).Extract()
 }
 
+// RemoveRouterInterface removes a router interface
 func (c *NetworkingClient) RemoveRouterInterface(routerID string, removeOpts routers.RemoveInterfaceOpts) (*routers.InterfaceInfo, error) {
 	return routers.RemoveInterface(c.client, routerID, removeOpts).Extract()
 }

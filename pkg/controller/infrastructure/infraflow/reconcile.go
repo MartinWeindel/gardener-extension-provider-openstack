@@ -109,7 +109,7 @@ func (c *FlowContext) ensureNewRouter(ctx context.Context, externalNetworkID str
 	desired := &access.Router{
 		Name:              c.namespace,
 		ExternalNetworkID: externalNetworkID,
-		EnableSNAT:        c.cloudProfileConfig.UseSNAT != nil && *c.cloudProfileConfig.UseSNAT,
+		EnableSNAT:        c.cloudProfileConfig.UseSNAT,
 	}
 	current, err := c.findExistingRouter()
 	if err != nil {

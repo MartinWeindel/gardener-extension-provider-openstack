@@ -62,16 +62,19 @@ type NetworkingAccess interface {
 	UpdateSecurityGroup(desired, current *groups.SecGroup) (modified bool, err error)
 }
 
+// Router is a simplified router resource
 type Router struct {
 	ID                string
 	Name              string
 	ExternalNetworkID string
-	EnableSNAT        bool
+	EnableSNAT        *bool
 	ExternalSubnetIDs []string
 
-	Status string
+	Status           string                    // only output
+	ExternalFixedIPs []routers.ExternalFixedIP // only output
 }
 
+// Network is a simplified network resource
 type Network struct {
 	ID           string
 	Name         string
@@ -124,11 +127,9 @@ func (a *networkingAccess) tryCreateRouter(desired *Router, subnetID *string) (*
 	options := routers.CreateOpts{
 		Name: desired.Name,
 		GatewayInfo: &routers.GatewayInfo{
-			NetworkID: desired.ExternalNetworkID,
+			NetworkID:  desired.ExternalNetworkID,
+			EnableSNAT: desired.EnableSNAT,
 		},
-	}
-	if desired.EnableSNAT {
-		options.GatewayInfo.EnableSNAT = &desired.EnableSNAT
 	}
 	if subnetID != nil {
 		options.GatewayInfo.ExternalFixedIPs = []routers.ExternalFixedIP{{SubnetID: *subnetID}}
@@ -170,22 +171,31 @@ func (a *networkingAccess) toRouter(raw *routers.Router) *Router {
 		ID:                raw.ID,
 		Name:              raw.Name,
 		ExternalNetworkID: raw.GatewayInfo.NetworkID,
-		EnableSNAT:        raw.GatewayInfo.EnableSNAT != nil && *raw.GatewayInfo.EnableSNAT,
+		EnableSNAT:        raw.GatewayInfo.EnableSNAT,
 		Status:            raw.Status,
+		ExternalFixedIPs:  raw.GatewayInfo.ExternalFixedIPs,
 	}
 	return router
 }
 
-// UpdateRouter updates the router
+// UpdateRouter updates the router if important fields have changed
 func (a *networkingAccess) UpdateRouter(desired, current *Router) (modified bool, err error) {
+	updateOpts := routers.UpdateOpts{}
 	if desired.Name != current.Name {
-		// TODO restore Name
+		modified = true
+		updateOpts.Name = desired.Name
 	}
-	if desired.ExternalNetworkID != current.ExternalNetworkID {
-		// TODO restore external network ID
+	if desired.ExternalNetworkID != current.ExternalNetworkID ||
+		(desired.EnableSNAT != nil && !reflect.DeepEqual(desired.EnableSNAT, current.EnableSNAT)) {
+		modified = true
+		updateOpts.GatewayInfo = &routers.GatewayInfo{
+			NetworkID:        desired.ExternalNetworkID,
+			EnableSNAT:       desired.EnableSNAT,
+			ExternalFixedIPs: current.ExternalFixedIPs, // unchanged
+		}
 	}
-	if desired.EnableSNAT != current.EnableSNAT {
-		// TODO restore enablaSNAT
+	if modified {
+		_, err = a.networking.UpdateRouter(current.ID, updateOpts)
 	}
 	return
 }
@@ -207,13 +217,13 @@ func (a *networkingAccess) AddRouterInterfaceAndWait(ctx context.Context, router
 		}
 		switch port.Status {
 		case "BUILD", "PENDING_CREATE", "PENDING_UPDATE", "DOWN":
+			time.Sleep(3 * time.Second)
 			continue
 		case "ACTIVE":
 			return nil
 		default:
 			return fmt.Errorf("router interface has unexpected status: %s", port.Status)
 		}
-		time.Sleep(3 * time.Second)
 	}
 }
 
@@ -329,14 +339,19 @@ func (a *networkingAccess) GetNetworkByName(name string) ([]*Network, error) {
 
 // UpdateNetwork updates a network
 func (a *networkingAccess) UpdateNetwork(desired, current *Network) (modified bool, err error) {
+	updateOpts := networks.UpdateOpts{}
 	if desired.Name != current.Name {
-
+		modified = true
+		updateOpts.Name = &desired.Name
 	}
 	if desired.AdminStateUp != current.AdminStateUp {
-
+		modified = true
+		updateOpts.AdminStateUp = &desired.AdminStateUp
 	}
-	// TODO
-	return false, nil
+	if modified {
+		_, err = a.networking.UpdateNetwork(current.ID, updateOpts)
+	}
+	return
 }
 
 func (a *networkingAccess) toNetwork(raw *networks.Network) *Network {
