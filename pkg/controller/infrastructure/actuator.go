@@ -91,8 +91,7 @@ func (a *actuator) addErrorCodes(err error) error {
 	if err == nil {
 		return nil
 	}
-	if msg := err.Error(); strings.Contains(msg, "AuthFailure:") || // TODO adjust for openstack errors
-		strings.Contains(msg, "InvalidClientTokenId:") {
+	if msg := err.Error(); strings.Contains(msg, "PolicyNotAuthorized") {
 		return helper.NewErrorWithCodes(err, gardencorev1beta1.ErrorInfraUnauthorized)
 	}
 	return err
