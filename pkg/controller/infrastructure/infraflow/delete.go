@@ -84,6 +84,7 @@ func (c *FlowContext) deleteRouter(ctx context.Context) error {
 		}
 	}
 	c.state.SetAsDeleted(IdentifierRouter)
+	c.state.SetAsDeleted(RouterIP)
 	return nil
 }
 

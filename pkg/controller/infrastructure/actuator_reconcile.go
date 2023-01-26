@@ -237,6 +237,7 @@ func computeProviderStatusFromFlowState(config *api.InfrastructureConfig, state 
 	status.Networks.ID = shared.ValidValue(state.Data[infraflow.IdentifierNetwork])
 	status.Networks.Name = shared.ValidValue(state.Data[infraflow.NameNetwork])
 	status.Networks.Router.ID = shared.ValidValue(state.Data[infraflow.IdentifierRouter])
+	status.Networks.Router.IP = shared.ValidValue(state.Data[infraflow.RouterIP])
 	status.Networks.FloatingPool.ID = shared.ValidValue(state.Data[infraflow.IdentifierFloatingNetwork])
 	status.Networks.FloatingPool.Name = shared.ValidValue(state.Data[infraflow.NameFloatingNetwork])
 

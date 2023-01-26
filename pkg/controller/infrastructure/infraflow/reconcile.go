@@ -94,12 +94,13 @@ func (c *FlowContext) ensureRouter(ctx context.Context) error {
 }
 
 func (c *FlowContext) ensureConfiguredRouter(_ context.Context) error {
-	_, err := c.access.GetRouterByID(c.config.Networks.Router.ID)
+	router, err := c.access.GetRouterByID(c.config.Networks.Router.ID)
 	if err != nil {
 		c.state.Set(IdentifierRouter, "")
 		return err
 	}
 	c.state.Set(IdentifierRouter, c.config.Networks.Router.ID)
+	c.state.Set(RouterIP, router.ExternalFixedIPs[0].IPAddress)
 	return nil
 }
 
@@ -117,6 +118,7 @@ func (c *FlowContext) ensureNewRouter(ctx context.Context, externalNetworkID str
 	}
 	if current != nil {
 		c.state.Set(IdentifierRouter, current.ID)
+		c.state.Set(RouterIP, current.ExternalFixedIPs[0].IPAddress)
 		if _, err := c.access.UpdateRouter(desired, current); err != nil {
 			return err
 		}
@@ -136,6 +138,7 @@ func (c *FlowContext) ensureNewRouter(ctx context.Context, externalNetworkID str
 			return err
 		}
 		c.state.Set(IdentifierRouter, created.ID)
+		c.state.Set(RouterIP, created.ExternalFixedIPs[0].IPAddress)
 	}
 
 	return nil
@@ -159,6 +162,7 @@ func (c *FlowContext) getRouterID() (*string, error) {
 	}
 	if router != nil {
 		c.state.Set(IdentifierRouter, router.ID)
+		c.state.Set(RouterIP, router.ExternalFixedIPs[0].IPAddress)
 		return &router.ID, nil
 	}
 	return nil, nil

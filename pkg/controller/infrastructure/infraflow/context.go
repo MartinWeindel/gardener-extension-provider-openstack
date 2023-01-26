@@ -49,6 +49,9 @@ const (
 	// NameSecGroup is the name of the security group
 	NameSecGroup = "SecurityGroupName"
 
+	// RouterIP is the key for the router IP address
+	RouterIP = "RouterIP"
+
 	// MarkerMigratedFromTerraform is the key for marking the state for successful state migration from Terraformer
 	MarkerMigratedFromTerraform = "MigratedFromTerraform"
 	// MarkerTerraformCleanedUp is the key for marking the state for successful cleanup of Terraformer resources.

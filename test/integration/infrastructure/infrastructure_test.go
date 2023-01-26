@@ -660,7 +660,7 @@ func runTest(
 }
 
 func checkOperationAnnotationRemoved(obj client.Object) error {
-	if annots := obj.GetAnnotations(); annots[infrastructure.AnnotationKeyUseFlow] != "" && annots["gardener.cloud/operation"] == "" {
+	if annots := obj.GetAnnotations(); annots["gardener.cloud/operation"] == "" {
 		return nil
 	}
 	return fmt.Errorf("reconciliation not started yet")
