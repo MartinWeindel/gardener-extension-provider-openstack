@@ -1,0 +1,142 @@
+# manila nodeplugin
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: csi-driver-manila-node
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: csi
+    role: driver-manila-node
+spec:
+  selector:
+    matchLabels:
+      app: csi
+      role: driver-manila-node
+  template:
+    metadata:
+      annotations:
+        checksum/secret-cloud-provider-config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        app: csi
+        role: driver-manila-node
+    spec:
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      serviceAccount: csi-driver-manila-node
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      #dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        {{- range .Values.shareProtocols }}
+        - name: {{ .protocolSelector | lower }}-registrar
+          image: {{ index .Values.images "csi-node-driver-registrar" }}
+          args:
+            - "--csi-address={{ .Values.socketPath }}"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+            - -v=5
+          env:
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/{{ .protocolSelector | lower }}.{{ include "csi-driver-node.provisioner" . }}/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+{{- if .Values.resources.nodeDriverRegistrar }}
+          resources:
+{{ toYaml .Values.resources.nodeDriverRegistrar | indent 12 }}
+{{- end }}
+          volumeMounts:
+            - name: {{ .protocolSelector | lower }}-plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+        - name: {{ .protocolSelector | lower }}-nodeplugin
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: {{ index .Values.images "csi-driver-manila" }}
+          args:
+            - /bin/manila-csi-plugin
+            - --nodeid=$(NODE_ID)
+            #?{{- if $.Values.csimanila.runtimeConfig.enabled }}
+            #?--runtime-config-file=/runtimeconfig/runtimeconfig.json
+            #?{{- end }}
+            - --with-topology
+            - --nodeaz={{ $.Values.csimanila.nodeAZ }}
+            - --endpoint=$(CSI_ENDPOINT)
+            - --drivername=$(DRIVER_NAME)
+            - --share-protocol-selector=$(MANILA_SHARE_PROTO)
+            - --fwdendpoint=$(FWD_CSI_ENDPOINT)
+            - --cluster-id="{{ $.Values.csimanila.clusterID }}"'
+            - --v=2
+          env:
+            - name: DRIVER_NAME
+              value: {{ .protocolSelector | lower }}.{{ include "csi-driver-node.provisioner" . }}
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/kubelet/plugins/{{ .protocolSelector | lower }}.{{ include "csi-driver-node.provisioner" . }}/csi.sock
+            - name: FWD_CSI_ENDPOINT
+              value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
+            - name: MANILA_SHARE_PROTO
+              value: "{{ .protocolSelector }}"
+          volumeMounts:
+            - name: {{ .protocolSelector | lower }}-plugin-dir
+              mountPath: /var/lib/kubelet/plugins/{{ .protocolSelector | lower }}.{{ include "csi-driver-node.provisioner" . }}
+            - name: {{ .protocolSelector | lower }}-fwd-plugin-dir
+              mountPath: {{ .fwdNodePluginEndpoint.dir }}
+            {{- if $.Values.csimanila.runtimeConfig.enabled }}
+            - name: {{ .protocolSelector | lower }}-runtime-config-dir
+              mountPath: /runtimeconfig
+              readOnly: true
+            {{- end }}
+{{- if .Values.resources.nodeplugin }}
+          resources:
+{{ toYaml .Values.resources.nodeplugin | indent 12 }}
+{{- end }}
+
+        - name: {{ .protocolSelector | lower }}-liveness-probe
+          image: {{ index .Values.images "csi-liveness-probe" }}
+          args:
+            - --csi-address={{ .Values.socketPath }}
+{{- if .Values.resources.livenessProbe }}
+          resources:
+{{ toYaml .Values.resources.livenessProbe | indent 12 }}
+{{- end }}
+          volumeMounts:
+            - name: {{ .protocolSelector | lower }}-plugin-dir
+              mountPath: /csi
+{{- end }}
+
+      volumes:
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        {{- range .Values.shareProtocols }}
+        - name: {{ .protocolSelector | lower }}-plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/{{ .protocolSelector | lower }}.{{ include "csi-driver-node.provisioner" . }}
+            type: DirectoryOrCreate
+        - name: {{ .protocolSelector | lower }}-fwd-plugin-dir
+          hostPath:
+            path: {{ .fwdNodePluginEndpoint.dir }}
+            type: DirectoryOrCreate
+        {{- if $.Values.csimanila.runtimeConfig.enabled }}
+        - name: {{ .protocolSelector | lower }}-runtime-config-dir
+          configMap:
+            name: manila-csi-runtimeconf-cm
+        {{- end }}
+        {{- end }}

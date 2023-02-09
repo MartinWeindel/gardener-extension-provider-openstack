@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-manila-controllerplugin
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: csi-manila
+    component: controllerplugin
+  ports:
+    - name: dummy
+      port: 12345

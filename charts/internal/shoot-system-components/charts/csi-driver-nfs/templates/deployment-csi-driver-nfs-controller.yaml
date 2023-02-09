@@ -1,0 +1,125 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csi-driver-nfs-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: csi
+    role: driver-nfs-controller
+    high-availability-config.resources.gardener.cloud/type: controller
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: csi
+      role: driver-nfs-controller
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+{{- if .Values.controller.podAnnotations }}
+      annotations:
+{{ toYaml .Values.controller.podAnnotations | indent 8 }}
+{{- end }}
+      labels:
+        app: csi
+        role: driver-nfs-controller
+        gardener.cloud/role: controlplane
+        #?networking.gardener.cloud/to-public-networks: allowed
+        networking.gardener.cloud/to-dns: allowed
+        networking.gardener.cloud/to-shoot-apiserver: allowed
+        #?networking.gardener.cloud/to-private-networks: allowed
+    spec:
+      automountServiceAccountToken: false
+      priorityClassName: system-node-critical
+      hostNetwork: true  # controller also needs to mount nfs to create dir
+      serviceAccountName: csi-driver-nfs-controller
+      containers:
+        - name: csi-provisioner
+          image: {{ index .Values.images "csi-provisioner" }}
+          args:
+            - "-v=2"
+            - "--csi-address=$(ADDRESS)"
+            - "--leader-election"
+            - "--leader-election-namespace={{ .Release.Namespace }}"
+            - "--extra-create-metadata=true"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+{{- if .Values.resources.provisioner }}
+          resources:
+{{ toYaml .Values.resources.provisioner | indent 12 }}
+{{- end }}
+
+        - name: liveness-probe
+          image: {{ index .Values.images "csi-liveness-probe" }}
+          args:
+            - --csi-address=/csi/csi.sock
+            - --probe-timeout=3s
+            - --v=2
+{{- if .Values.resources.livenessProbe }}
+          resources:
+{{ toYaml .Values.resources.livenessProbe | indent 12 }}
+{{- end }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+
+        - name: driver-nfs-controller
+          image: {{ index .Values.images "csi-driver-nfs" }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          args:
+            - "--v=5"
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--drivername=nfs.csi.k8s.io"
+            - "--mount-permissions={{ .Values.driver.mountPermissions }}"
+            - "--working-mount-dir={{ .Values.controller.workingMountDir }}"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+          ports:
+            - containerPort: 9808
+              name: healthz
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 30
+            timeoutSeconds: 10
+            periodSeconds: 30
+{{- if .Values.resources.driverNode }}
+          resources:
+{{ toYaml .Values.resources.driverNode | indent 12 }}
+{{- end }}
+          volumeMounts:
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: "Bidirectional"
+            - mountPath: /csi
+              name: socket-dir
+      volumes:
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: socket-dir
+          emptyDir: {}
