@@ -84,7 +84,7 @@ type NetworkStatus struct {
 	Router RouterStatus
 	// Subnets is a list of subnets that have been created.
 	Subnets []Subnet
-	// ShareNetwork contains information about a generated ShareNetwork
+	// ShareNetwork contains information about a created/provided ShareNetwork
 	ShareNetwork *ShareNetworkStatus
 }
 

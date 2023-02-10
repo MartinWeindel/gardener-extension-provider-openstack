@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "csi-driver-manila-node.extensionsGroup" . }}:{{ include "csi-driver-manila-node.name" . }}:manila-nodeplugin
+  name: {{ include "csi-driver-manila-node.extensionsGroup" . }}:{{ include "csi-driver-manila-node.name" . }}:csi-driver-manila-node
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -15,3 +15,9 @@ rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
     verbs: ["get", "list", "watch", "update"]
+{{- if not .Values.pspDisabled }}
+  - apiGroups: ["policy", "extensions"]
+    resourceNames: ["{{ include "csi-driver-manila-node.extensionsGroup" . }}.{{ include "csi-driver-manila-node.name" . }}.csi-driver-manila-node"]
+    resources: ["podsecuritypolicies"]
+    verbs: ["use"]
+{{- end }}

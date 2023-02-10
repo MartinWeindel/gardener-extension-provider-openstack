@@ -40,73 +40,73 @@ spec:
       containers:
         {{- range .Values.shareProtocols }}
         - name: openstack-{{ .protocolSelector | lower }}-provisioner
-          image: {{ index .Values.images "csi-provisioner" }}
+          image: {{ index $.Values.images "csi-provisioner" }}
           args:
             - --csi-address=$(ADDRESS)
             - --kubeconfig=/var/run/secrets/gardener.cloud/shoot/generic-kubeconfig/kubeconfig
             - --feature-gates=Topology=true
-            - --volume-name-prefix=pv-{{ .Release.Namespace }}
+            - --volume-name-prefix=pv-{{ $.Release.Namespace }}
             - --leader-election
             - --leader-election-namespace=kube-system
-            - --timeout={{ .Values.timeout }}
+            - --timeout={{ $.Values.timeout }}
             - v=5
           env:
             - name: ADDRESS
-              value: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
-{{- if .Values.resources.provisioner }}
+              value: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
+{{- if $.Values.resources.provisioner }}
           resources:
-{{ toYaml .Values.resources.provisioner | indent 10 }}
+{{ toYaml $.Values.resources.provisioner | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
-              mountPath: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}
+              mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
             - name: kubeconfig-csi-provisioner
               mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
               readOnly: true
 
         - name: openstack-{{ .protocolSelector | lower }}-snapshotter
-          image: {{ index .Values.images "csi-snapshotter" }}
+          image: {{ index $.Values.images "csi-snapshotter" }}
           args:
             - --csi-address=$(ADDRESS)
             - --kubeconfig=/var/run/secrets/gardener.cloud/shoot/generic-kubeconfig/kubeconfig
             - --leader-election
             - --leader-election-namespace=kube-system
-            - --timeout={{ .Values.timeout }}
-            - --snapshot-name-prefix={{ .Release.Namespace }}
+            - --timeout={{ $.Values.timeout }}
+            - --snapshot-name-prefix={{ $.Release.Namespace }}
           env:
             - name: ADDRESS
-              value: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
-{{- if .Values.resources.snapshotter }}
+              value: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
+{{- if $.Values.resources.snapshotter }}
           resources:
-{{ toYaml .Values.resources.snapshotter | indent 10 }}
+{{ toYaml $.Values.resources.snapshotter | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
-              mountPath: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}
+              mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
             - name: kubeconfig-csi-snapshotter
               mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
               readOnly: true
 
         - name: openstack-{{ .protocolSelector | lower }}-resizer
-          image: {{ index .Values.images "csi-resizer" }}
+          image: {{ index $.Values.images "csi-resizer" }}
           args:
             - --csi-address=$(ADDRESS)
             - --kubeconfig=/var/run/secrets/gardener.cloud/shoot/generic-kubeconfig/kubeconfig
             - --leader-election=true
             - --leader-election-namespace=kube-system
-            - --timeout={{ .Values.timeout }}
+            - --timeout={{ $.Values.timeout }}
             - --handle-volume-inuse-error=false
             - --v=5
           env:
             - name: ADDRESS
-              value: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
-{{- if .Values.resources.resizer }}
+              value: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
+{{- if $.Values.resources.resizer }}
           resources:
-{{ toYaml .Values.resources.resizer | indent 10 }}
+{{ toYaml $.Values.resources.resizer | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
-              mountPath: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}
+              mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
             - name: kubeconfig-csi-resizer
               mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
               readOnly: true
@@ -117,7 +117,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: {{ index .Values.images "csi-driver-manila" }}
+          image: {{ index $.Values.images "csi-driver-manila" }}
           args:
             - /bin/manila-csi-plugin
             - --nodeid=$(NODE_ID)
@@ -126,17 +126,12 @@ spec:
             - --v=3
             - --share-protocol-selector=$(MANILA_SHARE_PROTO)
             - --fwdendpoint=$(FWD_CSI_ENDPOINT)
-            #?{{- if $.Values.csimanila.topologyAwarenessEnabled }}
-            #?--with-topology
-            #?--nodeaz={{ $.Values.csimanila.nodeAZ }}
-            #?{{- end }}
+            - --with-topology
+            - --nodeaz={{ $.Values.csimanila.nodeAZ }}
             #?{{- if $.Values.csimanila.runtimeConfig.enabled }}
             #?--runtime-config-file=/runtimeconfig/runtimeconfig.json
             #?{{- end }}
-            #?{{- if .compatibilitySettings }}
-            #?--compatibility-settings={{ .compatibilitySettings }}
-            #?{{- end }}
-            - --cluster-id="{{ $.Values.csimanila.clusterID }}"'
+            - --cluster-id="{{ $.Values.csimanila.clusterID }}"
           env:
             - name: DRIVER_NAME
               value: {{ .protocolSelector | lower }}.manila.csi.openstack.org
@@ -145,18 +140,18 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
-              value: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
+              value: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}/csi.sock
             - name: FWD_CSI_ENDPOINT
               value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
             - name: MANILA_SHARE_PROTO
               value: "{{ .protocolSelector }}"
-{{- if .Values.resources.driver }}
+{{- if $.Values.resources.driver }}
           resources:
-{{ toYaml .Values.resources.driver | indent 10 }}
+{{ toYaml $.Values.resources.driver | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
-              mountPath: {{ .Values.socketPath }}/{{ .protocolSelector | lower }}
+              mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
             - name: {{ .protocolSelector | lower }}-fwd-plugin-dir
               mountPath: {{ .fwdNodePluginEndpoint.dir }}
             - name: pod-mounts
@@ -166,10 +161,7 @@ spec:
             #?- name: {{ .protocolSelector | lower }}-runtime-config-dir
             #?  mountPath: /runtimeconfig
             #?  readOnly: true
-            {{- end }}
-            - name: kubeconfig-csi-driver-manila
-              mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
-              readOnly: true
+            #?{{- end }}
         {{- end }}
 
         - name: openstack-csi-liveness-probe
@@ -178,7 +170,7 @@ spec:
           - --csi-address=/csi/csi.sock
 {{- if .Values.resources.livenessProbe }}
           resources:
-{{ toYaml .Values.resources.livenessProbe | indent 10 }}
+{{ toYaml .Values.resources.livenessProbe | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: socket-dir
@@ -250,22 +242,6 @@ spec:
                     - key: token
                       path: token
                   name: shoot-access-csi-resizer
-                  optional: false
-        - name: kubeconfig-csi-driver-manila
-          projected:
-            defaultMode: 420
-            sources:
-              - secret:
-                  items:
-                    - key: kubeconfig
-                      path: kubeconfig
-                  name: {{ .Values.global.genericTokenKubeconfigSecretName }}
-                  optional: false
-              - secret:
-                  items:
-                    - key: token
-                      path: token
-                  name: shoot-access-csi-driver-manila
                   optional: false
         - name: pod-mounts
           hostPath:

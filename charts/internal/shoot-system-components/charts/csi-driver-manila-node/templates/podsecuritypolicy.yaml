@@ -1,0 +1,35 @@
+{{- if not .Values.pspDisabled }}
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  annotations:
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'runtime/default'
+  name: {{ include "csi-driver-manila-node.extensionsGroup" . }}.{{ include "csi-driver-manila-node.name" . }}.csi-driver-manila-node
+spec:
+  privileged: true
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+  - SYS_ADMIN
+  volumes:
+  - hostPath
+  - projected
+  - secret
+  hostNetwork: true
+  hostPorts:
+  - max: 9808
+    min: 9808
+  allowedHostPaths:
+  - pathPrefix: /var/lib/kubelet
+  - pathPrefix: /dev
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  readOnlyRootFilesystem: false
+{{- end }}

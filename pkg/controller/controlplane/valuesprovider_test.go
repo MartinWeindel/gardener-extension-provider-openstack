@@ -21,10 +21,8 @@ import (
 
 	calicov1alpha1 "github.com/gardener/gardener-extension-networking-calico/pkg/apis/calico/v1alpha1"
 	"github.com/gardener/gardener-extension-networking-calico/pkg/calico"
-
 	api "github.com/gardener/gardener-extension-provider-openstack/pkg/apis/openstack"
 	"github.com/gardener/gardener-extension-provider-openstack/pkg/openstack"
-
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/controlplane/genericactuator"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -34,6 +32,7 @@ import (
 	"github.com/gardener/gardener/pkg/utils"
 	secretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager"
 	fakesecretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager/fake"
+	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,16 +61,22 @@ var (
 )
 
 func defaultControlPlane() *extensionsv1alpha1.ControlPlane {
-	return controlPlane(
-		"floating-network-id",
-		&api.ControlPlaneConfig{
-			LoadBalancerProvider: "load-balancer-provider",
-			CloudControllerManager: &api.CloudControllerManagerConfig{
-				FeatureGates: map[string]bool{
-					"CustomResourceValidation": true,
-				},
+	return defaultControlPlaneWithManila(false)
+}
+
+func defaultControlPlaneWithManila(csiManila bool) *extensionsv1alpha1.ControlPlane {
+	cpConfig := &api.ControlPlaneConfig{
+		LoadBalancerProvider: "load-balancer-provider",
+		CloudControllerManager: &api.CloudControllerManagerConfig{
+			FeatureGates: map[string]bool{
+				"CustomResourceValidation": true,
 			},
-		})
+		},
+	}
+	if csiManila {
+		cpConfig.CSIManila = &api.CSIManila{Enabled: true}
+	}
+	return controlPlane("floating-network-id", cpConfig)
 }
 
 func controlPlane(floatingPoolID string, cfg *api.ControlPlaneConfig) *extensionsv1alpha1.ControlPlane {
@@ -264,9 +269,11 @@ var _ = Describe("ValuesProvider", func() {
 		checksums = map[string]string{
 			v1beta1constants.SecretNameCloudProvider: "8bafb35ff1ac60275d62e1cbd495aceb511fb354f74a20f7d06ecb48b3a68432",
 			openstack.CloudProviderConfigName:        "bf19236c3ff3be18cf28cb4f58532bda4fd944857dd163baa05d23f952550392",
+			openstack.CloudProviderCSIDiskConfigName: "77627eb2343b9f2dc2fca3cce35f2f9eec55783aa5f7dac21c473019e5825de2",
 		}
 
-		enabledTrue = map[string]interface{}{"enabled": true}
+		enabledTrue  = map[string]interface{}{"enabled": true}
+		enabledFalse = map[string]interface{}{"enabled": false}
 	)
 
 	BeforeEach(func() {
@@ -560,6 +567,52 @@ var _ = Describe("ValuesProvider", func() {
 						},
 					},
 				}),
+				openstack.CSIManilaControllerName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+					"replicas": 1,
+					"csimanila": map[string]interface{}{
+						"clusterID": namespace,
+					},
+				}),
+			}))
+		})
+
+		It("should return correct control plane chart values if CSI Manila is enabled", func() {
+			c.EXPECT().Get(ctx, cpCSIDiskConfigKey, &corev1.Secret{}).DoAndReturn(clientGet(cpCSIDiskConfig))
+			c.EXPECT().Get(ctx, cpSecretKey, &corev1.Secret{}).DoAndReturn(clientGet(cpSecret))
+
+			cpManila := defaultControlPlaneWithManila(true)
+			values, err := vp.GetControlPlaneChartValues(ctx, cpManila, clusterK8sAtLeast120, fakeSecretsManager, checksums, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(values).To(matchers.DeepEqual(map[string]interface{}{
+				"global": map[string]interface{}{
+					"genericTokenKubeconfigSecretName": genericTokenKubeconfigSecretName,
+				},
+				openstack.CloudControllerManagerName: utils.MergeMaps(ccmChartValues, map[string]interface{}{
+					"userAgentHeaders":  []string{domainName, tenantName, technicalID},
+					"kubernetesVersion": clusterK8sAtLeast120.Shoot.Spec.Kubernetes.Version,
+				}),
+				openstack.CSIControllerName: utils.MergeMaps(enabledTrue, map[string]interface{}{
+					"replicas": 1,
+					"podAnnotations": map[string]interface{}{
+						"checksum/secret-" + openstack.CloudProviderCSIDiskConfigName: checksums[openstack.CloudProviderCSIDiskConfigName],
+					},
+					"userAgentHeaders": []string{domainName, tenantName, technicalID},
+					"csiSnapshotController": map[string]interface{}{
+						"replicas": 1,
+					},
+					"csiSnapshotValidationWebhook": map[string]interface{}{
+						"replicas": 1,
+						"secrets": map[string]interface{}{
+							"server": "csi-snapshot-validation-server",
+						},
+					},
+				}),
+				openstack.CSIManilaControllerName: utils.MergeMaps(enabledTrue, map[string]interface{}{
+					"replicas": 1,
+					"csimanila": map[string]interface{}{
+						"clusterID": namespace,
+					},
+				}),
 			}))
 		})
 	})
@@ -594,6 +647,43 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
+					openstack.CSIManilaNodeName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+						"csimanila": map[string]interface{}{
+							"clusterID": namespace,
+						},
+					}),
+					openstack.CSINFSNodeName: enabledFalse,
+				}))
+			})
+
+			It("should return correct shoot control plane chart if CSI Manila is enabled", func() {
+				c.EXPECT().Get(ctx, cpCSIDiskConfigKey, &corev1.Secret{}).DoAndReturn(clientGet(cpCSIDiskConfig))
+				c.EXPECT().Get(ctx, cpSecretKey, &corev1.Secret{}).DoAndReturn(clientGet(cpSecret))
+
+				cpManila := defaultControlPlaneWithManila(true)
+				values, err := vp.GetControlPlaneShootChartValues(ctx, cpManila, clusterK8sAtLeast120, fakeSecretsManager, map[string]string{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(values).To(Equal(map[string]interface{}{
+					openstack.CloudControllerManagerName: enabledTrue,
+					openstack.CSINodeName: utils.MergeMaps(enabledTrue, map[string]interface{}{
+						"vpaEnabled": true,
+						"podAnnotations": map[string]interface{}{
+							"checksum/secret-" + openstack.CloudProviderCSIDiskConfigName: checksums[openstack.CloudProviderCSIDiskConfigName],
+						},
+						"userAgentHeaders":    []string{domainName, tenantName, technicalID},
+						"cloudProviderConfig": cloudProviderDiskConfig,
+						"webhookConfig": map[string]interface{}{
+							"url":      "https://csi-snapshot-validation.test/volumesnapshot",
+							"caBundle": "",
+						},
+						"pspDisabled": false,
+					}),
+					openstack.CSIManilaNodeName: utils.MergeMaps(enabledTrue, map[string]interface{}{
+						"csimanila": map[string]interface{}{
+							"clusterID": namespace,
+						},
+					}),
+					openstack.CSINFSNodeName: enabledTrue,
 				}))
 			})
 		})
@@ -627,6 +717,12 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
+					openstack.CSIManilaNodeName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+						"csimanila": map[string]interface{}{
+							"clusterID": namespace,
+						},
+					}),
+					openstack.CSINFSNodeName: enabledFalse,
 				}))
 			})
 			It("should return correct shoot control plane chart when PodSecurityPolicy admission plugin is disabled in the shoot", func() {
@@ -658,6 +754,12 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": true,
 					}),
+					openstack.CSIManilaNodeName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+						"csimanila": map[string]interface{}{
+							"clusterID": namespace,
+						},
+					}),
+					openstack.CSINFSNodeName: enabledFalse,
 				}))
 			})
 		})

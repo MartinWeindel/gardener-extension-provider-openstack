@@ -2,7 +2,7 @@
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: csi-driver-nfs-controller-vpa
+  name: csi-driver-nfs-controller
   namespace: {{ .Release.Namespace }}
 spec:
   resourcePolicy:
@@ -21,7 +21,7 @@ spec:
         cpu: {{ .Values.vpa.resourcePolicy.provisioner.maxAllowed.cpu }}
         memory: {{ .Values.vpa.resourcePolicy.provisioner.maxAllowed.memory }}
       controlledValues: RequestsOnly
-    - containerName: liveness-probe
+    - containerName: csi-liveness-probe
       minAllowed:
         memory: {{ .Values.resources.livenessProbe.requests.memory }}
       maxAllowed:

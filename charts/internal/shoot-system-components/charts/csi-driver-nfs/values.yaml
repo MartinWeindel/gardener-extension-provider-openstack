@@ -26,7 +26,7 @@ resources:
       memory: 32Mi
     limits:
       memory: 200Mi
-  csiProvisioner:
+  provisioner:
     requests:
       cpu: 10m
       memory: 20Mi

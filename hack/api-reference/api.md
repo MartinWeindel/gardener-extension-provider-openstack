@@ -326,6 +326,20 @@ string
 Deprecated: Don&rsquo;t use anymore. Will be removed in a future version.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>csiManila</code></br>
+<em>
+<a href="#openstack.provider.extensions.gardener.cloud/v1alpha1.CSIManila">
+CSIManila
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>CSIManila contains configuration for CSI Manila driver (NFS)</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="openstack.provider.extensions.gardener.cloud/v1alpha1.InfrastructureConfig">InfrastructureConfig
@@ -457,6 +471,36 @@ reconciliation is possible.</p>
 <td>
 <em>(Optional)</em>
 <p>ServerGroupDependencies is a list of external server group dependencies.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="openstack.provider.extensions.gardener.cloud/v1alpha1.CSIManila">CSIManila
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#openstack.provider.extensions.gardener.cloud/v1alpha1.ControlPlaneConfig">ControlPlaneConfig</a>)
+</p>
+<p>
+<p>CSIManila contains configuration for CSI Manila driver (NFS)</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>enabled</code></br>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>Enabled is the switch to enable the CSI Manila driver support</p>
 </td>
 </tr>
 </tbody>
@@ -1160,7 +1204,7 @@ ShareNetworkStatus
 </td>
 <td>
 <em>(Optional)</em>
-<p>ShareNetwork contains information about a generated ShareNetwork</p>
+<p>ShareNetwork contains information about a created/provided ShareNetwork</p>
 </td>
 </tr>
 </tbody>

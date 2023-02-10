@@ -41,7 +41,7 @@ spec:
             - --csi-address=/csi/csi.sock
 {{- if .Values.resources.livenessProbe }}
           resources:
-{{ toYaml .Values.resources.livenessProbe | indent 10 }}
+{{ toYaml .Values.resources.livenessProbe | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: socket-dir
@@ -70,7 +70,7 @@ spec:
                   fieldPath: spec.nodeName
 {{- if .Values.resources.nodeDriverRegistrar }}
           resources:
-{{ toYaml .Values.resources.nodeDriverRegistrar | indent 10 }}
+{{ toYaml .Values.resources.nodeDriverRegistrar | indent 12 }}
 {{- end }}                  
           volumeMounts:
             - name: socket-dir
@@ -84,7 +84,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "{{ .Values.image.nfs.repository }}:{{ .Values.image.nfs.tag }}"
+          image: {{ index .Values.images "csi-driver-nfs" }}
           args :
             - "--v=2"
             - "--nodeid=$(NODE_ID)"
@@ -112,7 +112,7 @@ spec:
             periodSeconds: 30
 {{- if .Values.resources.driverNode }}
           resources:
-{{ toYaml .Values.resources.driverNode | indent 10 }}
+{{ toYaml .Values.resources.driverNode | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: socket-dir

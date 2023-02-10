@@ -5,3 +5,7 @@ extensions.gardener.cloud
 {{- define "csi-driver-manila-node.name" -}}
 provider-openstack
 {{- end -}}
+
+{{- define "csi-driver-manila-node.provisioner" -}}
+manila.csi.openstack.org
+{{- end -}}

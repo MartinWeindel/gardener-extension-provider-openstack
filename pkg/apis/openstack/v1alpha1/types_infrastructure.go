@@ -89,7 +89,7 @@ type NetworkStatus struct {
 	Router RouterStatus `json:"router"`
 	// Subnets is a list of subnets that have been created.
 	Subnets []Subnet `json:"subnets"`
-	// ShareNetwork contains information about a generated ShareNetwork
+	// ShareNetwork contains information about a created/provided ShareNetwork
 	// +optional
 	ShareNetwork *ShareNetworkStatus `json:"shareNetwork,omitempty"`
 }
