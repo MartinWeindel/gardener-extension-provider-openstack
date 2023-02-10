@@ -1,8 +1,8 @@
-{{- define "csi-driver-manila-node.extensionsGroup" -}}
+{{- define "csi-driver-node.extensionsGroup" -}}
 extensions.gardener.cloud
 {{- end -}}
 
-{{- define "csi-driver-manila-node.name" -}}
+{{- define "csi-driver-node.name" -}}
 provider-openstack
 {{- end -}}
 

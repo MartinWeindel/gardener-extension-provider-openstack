@@ -7,7 +7,6 @@ metadata:
   labels:
     app: csi
     role: driver-nfs-controller
-    high-availability-config.resources.gardener.cloud/type: controller
 spec:
   replicas: {{ .Values.controller.replicas }}
   revisionHistoryLimit: 1
@@ -29,15 +28,11 @@ spec:
       labels:
         app: csi
         role: driver-nfs-controller
-        gardener.cloud/role: controlplane
-        #?networking.gardener.cloud/to-public-networks: allowed
-        networking.gardener.cloud/to-dns: allowed
-        networking.gardener.cloud/to-shoot-apiserver: allowed
-        #?networking.gardener.cloud/to-private-networks: allowed
     spec:
       automountServiceAccountToken: false
       priorityClassName: system-node-critical
       hostNetwork: true  # controller also needs to mount nfs to create dir
+      dnsPolicy: {{ .Values.dnsPolicy }}
       serviceAccountName: csi-driver-nfs-controller
       containers:
         - name: csi-provisioner
@@ -64,6 +59,7 @@ spec:
           args:
             - --csi-address=/csi/csi.sock
             - --probe-timeout=3s
+            - --health-port={{ .Values.controller.livenessProbe.healthPort }}
             - --v=2
 {{- if .Values.resources.livenessProbe }}
           resources:
@@ -95,7 +91,7 @@ spec:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
           ports:
-            - containerPort: 9808
+            - containerPort: {{ .Values.controller.livenessProbe.healthPort }}
               name: healthz
               protocol: TCP
           livenessProbe:

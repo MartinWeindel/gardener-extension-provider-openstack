@@ -7,6 +7,9 @@ images:
 driver:
   mountPermissions: 0777
 
+pspDisabled: false
+dnsPolicy: ClusterFirstWithHostNet # available values: Default, ClusterFirstWithHostNet, ClusterFirst
+
 resources:
   driverNode:
     requests:
@@ -47,6 +50,12 @@ controller:
   podAnnotations: {}
   replicas: 1
   workingMountDir: "/tmp"
+  livenessProbe:
+    healthPort: 29652
+
+node:
+  livenessProbe:
+    healthPort: 26147
 
 vpa:
   resourcePolicy:

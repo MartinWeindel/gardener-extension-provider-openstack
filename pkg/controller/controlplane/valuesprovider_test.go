@@ -32,7 +32,6 @@ import (
 	"github.com/gardener/gardener/pkg/utils"
 	secretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager"
 	fakesecretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager/fake"
-	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -567,52 +566,6 @@ var _ = Describe("ValuesProvider", func() {
 						},
 					},
 				}),
-				openstack.CSIManilaControllerName: utils.MergeMaps(enabledFalse, map[string]interface{}{
-					"replicas": 1,
-					"csimanila": map[string]interface{}{
-						"clusterID": namespace,
-					},
-				}),
-			}))
-		})
-
-		It("should return correct control plane chart values if CSI Manila is enabled", func() {
-			c.EXPECT().Get(ctx, cpCSIDiskConfigKey, &corev1.Secret{}).DoAndReturn(clientGet(cpCSIDiskConfig))
-			c.EXPECT().Get(ctx, cpSecretKey, &corev1.Secret{}).DoAndReturn(clientGet(cpSecret))
-
-			cpManila := defaultControlPlaneWithManila(true)
-			values, err := vp.GetControlPlaneChartValues(ctx, cpManila, clusterK8sAtLeast120, fakeSecretsManager, checksums, false)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(values).To(matchers.DeepEqual(map[string]interface{}{
-				"global": map[string]interface{}{
-					"genericTokenKubeconfigSecretName": genericTokenKubeconfigSecretName,
-				},
-				openstack.CloudControllerManagerName: utils.MergeMaps(ccmChartValues, map[string]interface{}{
-					"userAgentHeaders":  []string{domainName, tenantName, technicalID},
-					"kubernetesVersion": clusterK8sAtLeast120.Shoot.Spec.Kubernetes.Version,
-				}),
-				openstack.CSIControllerName: utils.MergeMaps(enabledTrue, map[string]interface{}{
-					"replicas": 1,
-					"podAnnotations": map[string]interface{}{
-						"checksum/secret-" + openstack.CloudProviderCSIDiskConfigName: checksums[openstack.CloudProviderCSIDiskConfigName],
-					},
-					"userAgentHeaders": []string{domainName, tenantName, technicalID},
-					"csiSnapshotController": map[string]interface{}{
-						"replicas": 1,
-					},
-					"csiSnapshotValidationWebhook": map[string]interface{}{
-						"replicas": 1,
-						"secrets": map[string]interface{}{
-							"server": "csi-snapshot-validation-server",
-						},
-					},
-				}),
-				openstack.CSIManilaControllerName: utils.MergeMaps(enabledTrue, map[string]interface{}{
-					"replicas": 1,
-					"csimanila": map[string]interface{}{
-						"clusterID": namespace,
-					},
-				}),
 			}))
 		})
 	})
@@ -647,12 +600,15 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
-					openstack.CSIManilaNodeName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+					openstack.CSIDriverManila: utils.MergeMaps(enabledFalse, map[string]interface{}{
 						"csimanila": map[string]interface{}{
 							"clusterID": namespace,
 						},
+						"pspDisabled": false,
 					}),
-					openstack.CSINFSNodeName: enabledFalse,
+					openstack.CSIDriverNFS: utils.MergeMaps(enabledFalse, map[string]interface{}{
+						"pspDisabled": false,
+					}),
 				}))
 			})
 
@@ -678,12 +634,15 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
-					openstack.CSIManilaNodeName: utils.MergeMaps(enabledTrue, map[string]interface{}{
+					openstack.CSIDriverManila: utils.MergeMaps(enabledTrue, map[string]interface{}{
 						"csimanila": map[string]interface{}{
 							"clusterID": namespace,
 						},
+						"pspDisabled": false,
 					}),
-					openstack.CSINFSNodeName: enabledTrue,
+					openstack.CSIDriverNFS: utils.MergeMaps(enabledTrue, map[string]interface{}{
+						"pspDisabled": false,
+					}),
 				}))
 			})
 		})
@@ -717,12 +676,15 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
-					openstack.CSIManilaNodeName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+					openstack.CSIDriverManila: utils.MergeMaps(enabledFalse, map[string]interface{}{
 						"csimanila": map[string]interface{}{
 							"clusterID": namespace,
 						},
+						"pspDisabled": false,
 					}),
-					openstack.CSINFSNodeName: enabledFalse,
+					openstack.CSIDriverNFS: utils.MergeMaps(enabledFalse, map[string]interface{}{
+						"pspDisabled": false,
+					}),
 				}))
 			})
 			It("should return correct shoot control plane chart when PodSecurityPolicy admission plugin is disabled in the shoot", func() {
@@ -754,12 +716,15 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": true,
 					}),
-					openstack.CSIManilaNodeName: utils.MergeMaps(enabledFalse, map[string]interface{}{
+					openstack.CSIDriverManila: utils.MergeMaps(enabledFalse, map[string]interface{}{
 						"csimanila": map[string]interface{}{
 							"clusterID": namespace,
 						},
+						"pspDisabled": true,
 					}),
-					openstack.CSINFSNodeName: enabledFalse,
+					openstack.CSIDriverNFS: utils.MergeMaps(enabledFalse, map[string]interface{}{
+						"pspDisabled": true,
+					}),
 				}))
 			})
 		})

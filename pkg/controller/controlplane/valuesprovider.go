@@ -160,22 +160,6 @@ var (
 					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSISnapshotValidationName},
 				},
 			},
-			{
-				Name: openstack.CSIManilaControllerName,
-				Images: []string{
-					openstack.CSIDriverManilaImageName,
-					openstack.CSIProvisionerImageName,
-					openstack.CSISnapshotterImageName,
-					openstack.CSIResizerImageName,
-					openstack.CSILivenessProbeImageName,
-				},
-				Objects: []*chart.Object{
-					// csi-driver-manila-controller
-					{Type: &appsv1.Deployment{}, Name: openstack.CSIManilaControllerName},
-					{Type: &autoscalingv1.VerticalPodAutoscaler{}, Name: openstack.CSIManilaControllerName + "-vpa"},
-					{Type: &corev1.ConfigMap{}, Name: openstack.CSIManilaControllerName + "-observability-config"},
-				},
-			},
 		},
 	}
 
@@ -243,17 +227,30 @@ var (
 					openstack.CSIDriverManilaImageName,
 					openstack.CSINodeDriverRegistrarImageName,
 					openstack.CSILivenessProbeImageName,
+					openstack.CSIProvisionerImageName,
+					openstack.CSISnapshotterImageName,
+					openstack.CSIResizerImageName,
 				},
 				Objects: []*chart.Object{
-					// csi-driver
-					{Type: &appsv1.DaemonSet{}, Name: openstack.CSIManilaNodeName},
 					{Type: &storagev1.CSIDriver{}, Name: openstack.CSIManilaStorageProvisionerNFS},
+					// csi-driver-manila-controller
+					{Type: &appsv1.Deployment{}, Name: openstack.CSIManilaControllerName},
+					{Type: &corev1.ServiceAccount{}, Name: openstack.CSIManilaNodeName},
+					{Type: &rbacv1.ClusterRole{}, Name: openstack.UsernamePrefix + openstack.CSIManilaControllerName + "-psp"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSIManilaControllerName + "-psp"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSIManilaControllerName + "-provisioner"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSIManilaControllerName + "-resizer"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSIManilaControllerName + "-snapshotter"},
+					{Type: &rbacv1.RoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSIManilaControllerName + "-provisioner"},
+					{Type: &policyv1beta1.PodSecurityPolicy{}, Name: strings.Replace(openstack.UsernamePrefix+openstack.CSIManilaControllerName, ":", ".", -1)},
+					{Type: extensionscontroller.GetVerticalPodAutoscalerObject(), Name: openstack.CSIManilaControllerName},
+					// csi-driver-manila-node
+					{Type: &appsv1.DaemonSet{}, Name: openstack.CSIManilaNodeName},
 					{Type: &corev1.ServiceAccount{}, Name: openstack.CSIManilaNodeName},
 					{Type: &rbacv1.ClusterRole{}, Name: openstack.UsernamePrefix + openstack.CSIManilaNodeName},
 					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSIManilaNodeName},
 					{Type: &policyv1beta1.PodSecurityPolicy{}, Name: strings.Replace(openstack.UsernamePrefix+openstack.CSIManilaNodeName, ":", ".", -1)},
 					{Type: extensionscontroller.GetVerticalPodAutoscalerObject(), Name: openstack.CSIManilaNodeName},
-					// RBAC for csi-provisioner, csi-snapshotter, csi-resizer are reused from CSI cinder
 				},
 			},
 			{
@@ -265,14 +262,17 @@ var (
 					openstack.CSIProvisionerImageName,
 				},
 				Objects: []*chart.Object{
-					// csi-driver-controller
-					{Type: &appsv1.Deployment{}, Name: openstack.CSINFSControllerName},
 					{Type: &storagev1.CSIDriver{}, Name: openstack.CSIStorageProvisionerNFS},
+					// csi-driver-nfs-controller
+					{Type: &appsv1.Deployment{}, Name: openstack.CSINFSControllerName},
 					{Type: &corev1.ServiceAccount{}, Name: openstack.CSINFSControllerName},
+					{Type: &rbacv1.ClusterRole{}, Name: openstack.UsernamePrefix + openstack.CSINFSControllerName + "-psp"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSINFSControllerName + "-psp"},
+					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSINFSControllerName + "-provisioner"},
+					{Type: &rbacv1.RoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSINFSControllerName + "-provisioner"},
+					{Type: &policyv1beta1.PodSecurityPolicy{}, Name: strings.Replace(openstack.UsernamePrefix+openstack.CSINFSControllerName, ":", ".", -1)},
 					{Type: extensionscontroller.GetVerticalPodAutoscalerObject(), Name: openstack.CSINFSControllerName},
-					{Type: &rbacv1.ClusterRole{}, Name: openstack.UsernamePrefix + openstack.CSINFSProvisionerName},
-					{Type: &rbacv1.ClusterRoleBinding{}, Name: openstack.UsernamePrefix + openstack.CSINFSProvisionerName},
-					// csi-driver-node
+					// csi-driver-nfs-node
 					{Type: &appsv1.DaemonSet{}, Name: openstack.CSINFSNodeName},
 					{Type: &corev1.ServiceAccount{}, Name: openstack.CSINFSNodeName},
 					{Type: &rbacv1.ClusterRole{}, Name: openstack.UsernamePrefix + openstack.CSINFSNodeName},
@@ -677,18 +677,12 @@ func getControlPlaneChartValues(
 		return nil, err
 	}
 
-	csiManila, err := getCSIManilaControllerChartValues(cpConfig, cp, cluster, scaledDown)
-	if err != nil {
-		return nil, err
-	}
-
 	return map[string]interface{}{
 		"global": map[string]interface{}{
 			"genericTokenKubeconfigSecretName": extensionscontroller.GenericTokenKubeconfigSecretNameFromCluster(cluster),
 		},
 		openstack.CloudControllerManagerName: ccm,
 		openstack.CSIControllerName:          csiCinder,
-		openstack.CSIManilaControllerName:    csiManila,
 	}, nil
 }
 
@@ -777,23 +771,6 @@ func getCSIControllerChartValues(
 	return values, nil
 }
 
-// getCSIManilaControllerChartValues collects and returns the CSI Manila Controller chart values.
-func getCSIManilaControllerChartValues(
-	cpConfig *api.ControlPlaneConfig,
-	cp *extensionsv1alpha1.ControlPlane,
-	cluster *extensionscontroller.Cluster,
-	scaledDown bool,
-) (map[string]interface{}, error) {
-	values := map[string]interface{}{
-		"enabled":  cpConfig.CSIManila != nil && cpConfig.CSIManila.Enabled,
-		"replicas": extensionscontroller.GetControlPlaneReplicas(cluster, scaledDown, 1),
-		"csimanila": map[string]interface{}{
-			"clusterID": cp.Namespace,
-		},
-	}
-	return values, nil
-}
-
 // getControlPlaneShootChartValues collects and returns the control plane shoot chart values.
 func (vp *valuesProvider) getControlPlaneShootChartValues(
 	ctx context.Context,
@@ -846,21 +823,23 @@ func (vp *valuesProvider) getControlPlaneShootChartValues(
 	}
 
 	csiManilaEnabled := cpConfig.CSIManila != nil && cpConfig.CSIManila.Enabled
-	csiManilaNodeDriverValues := map[string]interface{}{
+	csiDriverManilaValues := map[string]interface{}{
 		"enabled": csiManilaEnabled,
 		"csimanila": map[string]interface{}{
 			"clusterID": cp.Namespace,
 		},
+		"pspDisabled": gardencorev1beta1helper.IsPSPDisabled(cluster.Shoot),
 	}
-	csiManilaNFSDriverValues := map[string]interface{}{
-		"enabled": csiManilaEnabled,
+	csiDriverNFSValues := map[string]interface{}{
+		"enabled":     csiManilaEnabled,
+		"pspDisabled": gardencorev1beta1helper.IsPSPDisabled(cluster.Shoot),
 	}
 
 	return map[string]interface{}{
 		openstack.CloudControllerManagerName: map[string]interface{}{"enabled": true},
 		openstack.CSINodeName:                csiNodeDriverValues,
-		openstack.CSIManilaNodeName:          csiManilaNodeDriverValues,
-		openstack.CSINFSNodeName:             csiManilaNFSDriverValues,
+		openstack.CSIDriverManila:            csiDriverManilaValues,
+		openstack.CSIDriverNFS:               csiDriverNFSValues,
 	}, nil
 }
 

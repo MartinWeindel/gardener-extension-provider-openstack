@@ -2,7 +2,7 @@
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: csi-driver-manila-controller-vpa
+  name: csi-driver-manila-controller
   namespace: {{ .Release.Namespace }}
 spec:
   resourcePolicy:
@@ -10,10 +10,10 @@ spec:
     {{- range .Values.shareProtocols }}
     - containerName: openstack-{{ .protocolSelector | lower }}-controller
       minAllowed:
-        memory: {{ $.Values.resources.driver.requests.memory }}
+        memory: {{ $.Values.resources.driverController.requests.memory }}
       maxAllowed:
-        cpu: {{ $.Values.vpa.resourcePolicy.driver.maxAllowed.cpu }}
-        memory: {{ $.Values.vpa.resourcePolicy.driver.maxAllowed.memory }}
+        cpu: {{ $.Values.vpa.resourcePolicy.driverController.maxAllowed.cpu }}
+        memory: {{ $.Values.vpa.resourcePolicy.driverController.maxAllowed.memory }}
       controlledValues: RequestsOnly
     - containerName: openstack-{{ .protocolSelector | lower }}-provisioner
       minAllowed:

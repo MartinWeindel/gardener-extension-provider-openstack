@@ -6,7 +6,6 @@ metadata:
   labels:
     app: csi
     role: driver-manila-controller
-    high-availability-config.resources.gardener.cloud/type: controller
 spec:
   replicas: {{ .Values.replicas }}
   revisionHistoryLimit: 1
@@ -29,25 +28,19 @@ spec:
       labels:
         app: csi
         role: driver-manila-controller
-        gardener.cloud/role: controlplane
-        networking.gardener.cloud/to-dns: allowed
-        networking.gardener.cloud/to-public-networks: allowed
-        networking.gardener.cloud/to-shoot-apiserver: allowed
-        networking.gardener.cloud/to-private-networks: allowed
     spec:
       automountServiceAccountToken: false
-      priorityClassName: gardener-system-300
+      priorityClassName: system-node-critical
       containers:
         {{- range .Values.shareProtocols }}
         - name: openstack-{{ .protocolSelector | lower }}-provisioner
           image: {{ index $.Values.images "csi-provisioner" }}
           args:
             - --csi-address=$(ADDRESS)
-            - --kubeconfig=/var/run/secrets/gardener.cloud/shoot/generic-kubeconfig/kubeconfig
             - --feature-gates=Topology=true
             - --volume-name-prefix=pv-{{ $.Release.Namespace }}
             - --leader-election
-            - --leader-election-namespace=kube-system
+            - --leader-election-namespace={{ $.Release.Namespace }}
             - --timeout={{ $.Values.timeout }}
             - v=5
           env:
@@ -60,17 +53,13 @@ spec:
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
               mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
-            - name: kubeconfig-csi-provisioner
-              mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
-              readOnly: true
 
         - name: openstack-{{ .protocolSelector | lower }}-snapshotter
           image: {{ index $.Values.images "csi-snapshotter" }}
           args:
             - --csi-address=$(ADDRESS)
-            - --kubeconfig=/var/run/secrets/gardener.cloud/shoot/generic-kubeconfig/kubeconfig
             - --leader-election
-            - --leader-election-namespace=kube-system
+            - --leader-election-namespace={{ $.Release.Namespace }}
             - --timeout={{ $.Values.timeout }}
             - --snapshot-name-prefix={{ $.Release.Namespace }}
           env:
@@ -83,17 +72,13 @@ spec:
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
               mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
-            - name: kubeconfig-csi-snapshotter
-              mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
-              readOnly: true
 
         - name: openstack-{{ .protocolSelector | lower }}-resizer
           image: {{ index $.Values.images "csi-resizer" }}
           args:
             - --csi-address=$(ADDRESS)
-            - --kubeconfig=/var/run/secrets/gardener.cloud/shoot/generic-kubeconfig/kubeconfig
             - --leader-election=true
-            - --leader-election-namespace=kube-system
+            - --leader-election-namespace={{ $.Release.Namespace }}
             - --timeout={{ $.Values.timeout }}
             - --handle-volume-inuse-error=false
             - --v=5
@@ -107,9 +92,6 @@ spec:
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
               mountPath: {{ $.Values.socketPath }}/{{ .protocolSelector | lower }}
-            - name: kubeconfig-csi-resizer
-              mountPath: /var/run/secrets/gardener.cloud/shoot/generic-kubeconfig
-              readOnly: true
 
         - name: openstack-{{ .protocolSelector | lower }}-driver
           securityContext:
@@ -145,9 +127,9 @@ spec:
               value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
             - name: MANILA_SHARE_PROTO
               value: "{{ .protocolSelector }}"
-{{- if $.Values.resources.driver }}
+{{- if $.Values.resources.driverController }}
           resources:
-{{ toYaml $.Values.resources.driver | indent 12 }}
+{{ toYaml $.Values.resources.driverController | indent 12 }}
 {{- end }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
@@ -195,54 +177,6 @@ spec:
         #?{{- end }}
         #
         {{- end }}
-        - name: kubeconfig-csi-provisioner
-          projected:
-            defaultMode: 420
-            sources:
-              - secret:
-                  items:
-                    - key: kubeconfig
-                      path: kubeconfig
-                  name: {{ .Values.global.genericTokenKubeconfigSecretName }}
-                  optional: false
-              - secret:
-                  items:
-                    - key: token
-                      path: token
-                  name: shoot-access-csi-provisioner
-                  optional: false
-        - name: kubeconfig-csi-snapshotter
-          projected:
-            defaultMode: 420
-            sources:
-              - secret:
-                  items:
-                    - key: kubeconfig
-                      path: kubeconfig
-                  name: {{ .Values.global.genericTokenKubeconfigSecretName }}
-                  optional: false
-              - secret:
-                  items:
-                    - key: token
-                      path: token
-                  name: shoot-access-csi-snapshotter
-                  optional: false
-        - name: kubeconfig-csi-resizer
-          projected:
-            defaultMode: 420
-            sources:
-              - secret:
-                  items:
-                    - key: kubeconfig
-                      path: kubeconfig
-                  name: {{ .Values.global.genericTokenKubeconfigSecretName }}
-                  optional: false
-              - secret:
-                  items:
-                    - key: token
-                      path: token
-                  name: shoot-access-csi-resizer
-                  optional: false
         - name: pod-mounts
           hostPath:
             path: /var/lib/kubelet/pods

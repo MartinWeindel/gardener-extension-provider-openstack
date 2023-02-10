@@ -2,11 +2,45 @@ images:
   csi-driver-manila: image-repository:image-tag
   csi-node-driver-registrar: image-repository:image-tag
   csi-liveness-probe: image-repository:image-tag
+  csi-provisioner: image-repository:image-tag
+  csi-attacher: image-repository:image-tag
+  csi-snapshotter: image-repository:image-tag
+  csi-resizer: image-repository:image-tag
 
 socketPath: /csi/csi.sock
+pspDisabled: false
+dnsPolicy: ClusterFirstWithHostNet # available values: Default, ClusterFirstWithHostNet, ClusterFirst
+timeout: 3m
+
+node:
+  vpaEnabled: true
 
 resources:
-  nodeplugin:
+  driverController:
+    requests:
+      cpu: 20m
+      memory: 50Mi
+    limits:
+      memory: 360Mi
+  provisioner:
+    requests:
+      cpu: 11m
+      memory: 38Mi
+    limits:
+      memory: 400Mi
+  snapshotter:
+    requests:
+      cpu: 11m
+      memory: 36Mi
+    limits:
+      memory: 220Mi
+  resizer:
+    requests:
+      cpu: 11m
+      memory: 32Mi
+    limits:
+      memory: 220Mi
+  driverNode:
     requests:
       cpu: 15m
       memory: 42Mi
@@ -25,6 +59,37 @@ resources:
     limits:
       memory: 200Mi
 
+vpa:
+  resourcePolicy:
+    driverController:
+      maxAllowed:
+        cpu: 800m
+        memory: 4G
+    provisioner:
+      maxAllowed:
+        cpu: 800m
+        memory: 4G
+    snapshotter:
+      maxAllowed:
+        cpu: 700m
+        memory: 3G
+    resizer:
+      maxAllowed:
+        cpu: 700m
+        memory: 3G
+    livenessProbe:
+      maxAllowed:
+        cpu: 500m
+        memory: 2G
+    driverNode:
+      maxAllowed:
+        cpu: 2
+        memory: 4G
+    nodeDriverRegistrar:
+      maxAllowed:
+        cpu: 1
+        memory: 3G
+
 # Enabled Manila share protocols
 shareProtocols:
   - protocolSelector: NFS
@@ -32,10 +97,14 @@ shareProtocols:
     fwdNodePluginEndpoint:
       dir: /var/lib/kubelet/plugins/csi-nfsplugin
       sockFile: csi.sock
+    livenessProbe:
+      healthPort: 24913
   # - protocolSelector: CEPHFS
   #   fwdNodePluginEndpoint:
   #     dir: /var/lib/kubelet/plugins/cephfs.csi.ceph.com
   #     sockFile: csi.sock
+  #  livenessProbe:
+  #    healthPort: 24957
 
 # CSI Manila spec
 csimanila:

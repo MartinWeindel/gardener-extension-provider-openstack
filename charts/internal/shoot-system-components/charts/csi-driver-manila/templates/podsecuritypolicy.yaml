@@ -6,7 +6,7 @@ metadata:
   annotations:
     seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
     seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'runtime/default'
-  name: {{ include "csi-driver-node.extensionsGroup" . }}.{{ include "csi-driver-node.name" . }}.csi-driver-nfs-node
+  name: {{ include "csi-driver-node.extensionsGroup" . }}.{{ include "csi-driver-node.name" . }}.csi-driver-manila-node
 spec:
   privileged: true
   allowPrivilegeEscalation: true
@@ -40,7 +40,7 @@ metadata:
   annotations:
     seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
     seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'runtime/default'
-  name: {{ include "csi-driver-node.extensionsGroup" . }}.{{ include "csi-driver-node.name" . }}.csi-driver-nfs-controller
+  name: {{ include "csi-driver-node.extensionsGroup" . }}.{{ include "csi-driver-node.name" . }}.csi-driver-manila-controller
 spec:
   privileged: true
   allowPrivilegeEscalation: true

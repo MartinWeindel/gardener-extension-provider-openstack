@@ -113,6 +113,8 @@ const (
 	CSIManilaNodeName = "csi-driver-manila-node"
 	// CSINFSNodeName is a constant for the chart name for a CSI NFS node deployment in the shoot.
 	CSINFSNodeName = "csi-driver-nfs-node"
+	// CSIDriverManila is a constant for the chart name for the CSI driver Manila deployment in the shoot.
+	CSIDriverManila = "csi-driver-manila"
 	// CSIDriverNFS is a constant for the chart name for the generic CSI driver NFS deployment in the shoot.
 	CSIDriverNFS = "csi-driver-nfs"
 	// CSIDriverName is a constant for the name of the csi-driver component.
