@@ -143,6 +143,8 @@ const (
 	CSIManilaStorageProvisionerNFS = "nfs.manila.csi.openstack.org"
 	// CSIStorageProvisionerNFS is a constant with the storage provisioner name which is used in storageclasses for generic NFS.
 	CSIStorageProvisionerNFS = "nfs.csi.k8s.io"
+	// CSIManilaNFS is a constant for CSI Manila NFS resource objects
+	CSIManilaNFS = "csi-manila-nfs"
 	// MachineControllerManagerName is a constant for the name of the machine-controller-manager.
 	MachineControllerManagerName = "machine-controller-manager"
 	// MachineControllerManagerVpaName is the name of the VerticalPodAutoscaler of the machine-controller-manager deployment.

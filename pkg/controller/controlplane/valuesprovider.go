@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Masterminds/semver"
@@ -25,6 +26,7 @@ import (
 	"github.com/gardener/gardener-extension-networking-calico/pkg/calico"
 	ciliumv1alpha1 "github.com/gardener/gardener-extension-networking-cilium/pkg/apis/cilium/v1alpha1"
 	"github.com/gardener/gardener-extension-networking-cilium/pkg/cilium"
+	"github.com/gardener/gardener-extension-provider-openstack/pkg/internal/infrastructure"
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	"github.com/gardener/gardener/extensions/pkg/controller/controlplane/genericactuator"
@@ -39,6 +41,7 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	secretutils "github.com/gardener/gardener/pkg/utils/secrets"
 	secretsmanager "github.com/gardener/gardener/pkg/utils/secrets/manager"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,6 +50,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 
 	api "github.com/gardener/gardener-extension-provider-openstack/pkg/apis/openstack"
@@ -222,7 +226,7 @@ var (
 				},
 			},
 			{
-				Name: openstack.CSIManilaNodeName,
+				Name: openstack.CSIDriverManila,
 				Images: []string{
 					openstack.CSIDriverManilaImageName,
 					openstack.CSINodeDriverRegistrarImageName,
@@ -233,6 +237,9 @@ var (
 				},
 				Objects: []*chart.Object{
 					{Type: &storagev1.CSIDriver{}, Name: openstack.CSIManilaStorageProvisionerNFS},
+					{Type: &corev1.Secret{}, Name: openstack.CSIManilaNFS},
+					{Type: &storagev1.StorageClass{}, Name: openstack.CSIManilaNFS},
+					{Type: &volumesnapshotv1.VolumeSnapshotClass{}, Name: openstack.CSIManilaNFS},
 					// csi-driver-manila-controller
 					{Type: &appsv1.Deployment{}, Name: openstack.CSIManilaControllerName},
 					{Type: &corev1.ServiceAccount{}, Name: openstack.CSIManilaNodeName},
@@ -328,9 +335,9 @@ func (vp *valuesProvider) GetConfigChartValues(
 		}
 	}
 
-	infraStatus := &api.InfrastructureStatus{}
-	if _, _, err := vp.Decoder().Decode(cp.Spec.InfrastructureProviderStatus.Raw, nil, infraStatus); err != nil {
-		return nil, fmt.Errorf("could not decode infrastructureProviderStatus of controlplane '%s': %w", kutil.ObjectName(cp), err)
+	infraStatus, err := vp.getInfrastructureStatus(cp)
+	if err != nil {
+		return nil, err
 	}
 
 	cloudProfileConfig, err := helper.CloudProfileConfigFromCluster(cluster)
@@ -349,6 +356,14 @@ func (vp *valuesProvider) GetConfigChartValues(
 		return nil, fmt.Errorf("could not determine overlay status: %v", err)
 	}
 	return getConfigChartValues(cpConfig, infraStatus, cloudProfileConfig, overlayEnabled, cp, credentials, cluster)
+}
+
+func (vp *valuesProvider) getInfrastructureStatus(cp *extensionsv1alpha1.ControlPlane) (*api.InfrastructureStatus, error) {
+	infraStatus := &api.InfrastructureStatus{}
+	if _, _, err := vp.Decoder().Decode(cp.Spec.InfrastructureProviderStatus.Raw, nil, infraStatus); err != nil {
+		return nil, fmt.Errorf("could not decode infrastructureProviderStatus of controlplane '%s': %w", kutil.ObjectName(cp), err)
+	}
+	return infraStatus, nil
 }
 
 // GetControlPlaneChartValues returns the values for the control plane chart applied by the generic actuator.
@@ -383,7 +398,8 @@ func (vp *valuesProvider) GetControlPlaneChartValues(
 		return nil, err
 	}
 	checksums[openstack.CloudProviderCSIDiskConfigName] = gardenerutils.ComputeChecksum(cpDiskConfigSecret.Data)
-	userAgentHeaders = vp.getUserAgentHeaders(ctx, cp, cluster)
+	credentials, _ := vp.getCredentials(ctx, cp) // ignore missing credentials
+	userAgentHeaders = vp.getUserAgentHeaders(credentials, cluster)
 
 	return getControlPlaneChartValues(cpConfig, cp, cluster, secretsReader, userAgentHeaders, checksums, scaledDown)
 }
@@ -478,16 +494,19 @@ func (vp *valuesProvider) GetStorageClassesChartValues(
 	return values, nil
 }
 
+func (vp *valuesProvider) getCredentials(ctx context.Context, cp *extensionsv1alpha1.ControlPlane) (*openstack.Credentials, error) {
+	return openstack.GetCredentials(ctx, vp.Client(), cp.Spec.SecretRef, false)
+}
+
 func (vp *valuesProvider) getUserAgentHeaders(
-	ctx context.Context,
-	cp *extensionsv1alpha1.ControlPlane,
+	credentials *openstack.Credentials,
 	cluster *extensionscontroller.Cluster,
 ) []string {
 	headers := []string{}
 
 	// Add the domain and project/tenant to the useragent headers if the secret
 	// could be read and the respective fields in secret are not empty.
-	if credentials, err := openstack.GetCredentials(ctx, vp.Client(), cp.Spec.SecretRef, false); err == nil && credentials != nil {
+	if credentials != nil {
 		if credentials.DomainName != "" {
 			headers = append(headers, credentials.DomainName)
 		}
@@ -797,7 +816,8 @@ func (vp *valuesProvider) getControlPlaneShootChartValues(
 
 	cloudProviderDiskConfig = secret.Data[openstack.CloudProviderConfigDataKey]
 	checksums[openstack.CloudProviderCSIDiskConfigName] = gardenerutils.ComputeChecksum(secret.Data)
-	userAgentHeader = vp.getUserAgentHeaders(ctx, cp, cluster)
+	credentials, _ := vp.getCredentials(ctx, cp) // ignore missing credentials
+	userAgentHeader = vp.getUserAgentHeaders(credentials, cluster)
 
 	caSecret, found := secretsReader.Get(caNameControlPlane)
 	if !found {
@@ -822,17 +842,9 @@ func (vp *valuesProvider) getControlPlaneShootChartValues(
 		csiNodeDriverValues["userAgentHeaders"] = userAgentHeader
 	}
 
-	csiManilaEnabled := cpConfig.CSIManila != nil && cpConfig.CSIManila.Enabled
-	csiDriverManilaValues := map[string]interface{}{
-		"enabled": csiManilaEnabled,
-		"csimanila": map[string]interface{}{
-			"clusterID": cp.Namespace,
-		},
-		"pspDisabled": gardencorev1beta1helper.IsPSPDisabled(cluster.Shoot),
-	}
-	csiDriverNFSValues := map[string]interface{}{
-		"enabled":     csiManilaEnabled,
-		"pspDisabled": gardencorev1beta1helper.IsPSPDisabled(cluster.Shoot),
+	csiDriverManilaValues, csiDriverNFSValues, err := vp.getControlPlaneShootChartCSIManilaValues(cpConfig, cp, cluster, credentials)
+	if err != nil {
+		return nil, err
 	}
 
 	return map[string]interface{}{
@@ -881,4 +893,81 @@ func (vp *valuesProvider) isOverlayEnabled(network v1beta1.Networking) (bool, er
 	}
 
 	return true, nil
+}
+
+func (vp *valuesProvider) getControlPlaneShootChartCSIManilaValues(
+	cpConfig *api.ControlPlaneConfig,
+	cp *extensionsv1alpha1.ControlPlane,
+	cluster *extensionscontroller.Cluster,
+	credentials *openstack.Credentials,
+) (map[string]interface{}, map[string]interface{}, error) {
+
+	csiManilaEnabled := cpConfig.CSIManila != nil && cpConfig.CSIManila.Enabled
+	csiDriverManilaValues := map[string]interface{}{
+		"enabled": csiManilaEnabled,
+	}
+	csiDriverNFSValues := map[string]interface{}{
+		"enabled": csiManilaEnabled,
+	}
+
+	if csiManilaEnabled {
+		csiDriverManilaValues["vpaEnabled"] = gardencorev1beta1helper.ShootWantsVerticalPodAutoscaler(cluster.Shoot)
+		csiDriverManilaValues["pspDisabled"] = gardencorev1beta1helper.IsPSPDisabled(cluster.Shoot)
+		csiDriverNFSValues["vpaEnabled"] = gardencorev1beta1helper.ShootWantsVerticalPodAutoscaler(cluster.Shoot)
+		csiDriverNFSValues["pspDisabled"] = gardencorev1beta1helper.IsPSPDisabled(cluster.Shoot)
+
+		infraConfig, err := helper.InfrastructureConfigFromRawExtension(cluster.Shoot.Spec.Provider.InfrastructureConfig)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not decode infrastructure config of controlplane '%s': %w", kutil.ObjectName(cp), err)
+		}
+		infraStatus, err := vp.getInfrastructureStatus(cp)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		csiDriverManilaValues["csimanila"] = map[string]interface{}{
+			"clusterID": cp.Namespace,
+		}
+		var authURL, domainName, projectName, username, password,
+			applicationCredentialID, applicationCredentialName, applicationCredentialSecret, shareNetworkID string
+		if credentials != nil {
+			authURL = credentials.AuthURL
+			domainName = credentials.DomainName
+			projectName = credentials.TenantName
+			username = credentials.Username
+			password = credentials.Password
+			applicationCredentialID = credentials.ApplicationCredentialID
+			applicationCredentialName = credentials.ApplicationCredentialName
+			applicationCredentialSecret = credentials.ApplicationCredentialSecret
+		}
+		if infraStatus.Networks.ShareNetwork != nil {
+			shareNetworkID = infraStatus.Networks.ShareNetwork.ID
+		}
+		csiDriverManilaValues["openstack"] = map[string]interface{}{
+			"availabilityZones":           vp.getAllWorkerPoolsZones(cluster),
+			"shareNetworkID":              shareNetworkID,
+			"shareClient":                 infrastructure.WorkersCIDR(infraConfig),
+			"authURL":                     authURL,
+			"region":                      cp.Spec.Region,
+			"domainName":                  domainName,
+			"projectName":                 projectName,
+			"userName":                    username,
+			"password":                    password,
+			"applicationCredentialID":     applicationCredentialID,
+			"applicationCredentialName":   applicationCredentialName,
+			"applicationCredentialSecret": applicationCredentialSecret,
+		}
+	}
+
+	return csiDriverManilaValues, csiDriverNFSValues, nil
+}
+
+func (vp *valuesProvider) getAllWorkerPoolsZones(cluster *extensionscontroller.Cluster) []string {
+	zones := sets.NewString()
+	for _, worker := range cluster.Shoot.Spec.Provider.Workers {
+		zones.Insert(worker.Zones...)
+	}
+	list := zones.UnsortedList()
+	sort.Strings(list)
+	return list
 }

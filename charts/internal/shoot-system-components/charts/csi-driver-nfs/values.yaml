@@ -8,6 +8,7 @@ driver:
   mountPermissions: 0777
 
 pspDisabled: false
+vpaEnabled: false
 dnsPolicy: ClusterFirstWithHostNet # available values: Default, ClusterFirstWithHostNet, ClusterFirst
 
 resources:

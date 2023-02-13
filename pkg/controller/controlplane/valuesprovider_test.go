@@ -22,6 +22,7 @@ import (
 	calicov1alpha1 "github.com/gardener/gardener-extension-networking-calico/pkg/apis/calico/v1alpha1"
 	"github.com/gardener/gardener-extension-networking-calico/pkg/calico"
 	api "github.com/gardener/gardener-extension-provider-openstack/pkg/apis/openstack"
+	openstackv1alpha1 "github.com/gardener/gardener-extension-provider-openstack/pkg/apis/openstack/v1alpha1"
 	"github.com/gardener/gardener-extension-provider-openstack/pkg/openstack"
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	"github.com/gardener/gardener/extensions/pkg/controller/controlplane/genericactuator"
@@ -72,13 +73,19 @@ func defaultControlPlaneWithManila(csiManila bool) *extensionsv1alpha1.ControlPl
 			},
 		},
 	}
+	var status *api.ShareNetworkStatus
 	if csiManila {
 		cpConfig.CSIManila = &api.CSIManila{Enabled: true}
+		status = &api.ShareNetworkStatus{
+			ID:   "1111-2222-3333-4444",
+			Name: "sharenetwork",
+		}
 	}
-	return controlPlane("floating-network-id", cpConfig)
+	cp := controlPlane("floating-network-id", cpConfig, status)
+	return cp
 }
 
-func controlPlane(floatingPoolID string, cfg *api.ControlPlaneConfig) *extensionsv1alpha1.ControlPlane {
+func controlPlane(floatingPoolID string, cfg *api.ControlPlaneConfig, status *api.ShareNetworkStatus) *extensionsv1alpha1.ControlPlane {
 	return &extensionsv1alpha1.ControlPlane{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "control-plane",
@@ -111,6 +118,7 @@ func controlPlane(floatingPoolID string, cfg *api.ControlPlaneConfig) *extension
 								Purpose: api.PurposeNodes,
 							},
 						},
+						ShareNetwork: status,
 					},
 				}),
 			},
@@ -177,6 +185,25 @@ var _ = Describe("ValuesProvider", func() {
 							Enabled: true,
 						},
 					},
+					Provider: gardencorev1beta1.Provider{
+						InfrastructureConfig: &runtime.RawExtension{
+							Raw: encode(&openstackv1alpha1.InfrastructureConfig{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: openstackv1alpha1.SchemeGroupVersion.String(),
+									Kind:       "InfrastructureConfig",
+								},
+								Networks: openstackv1alpha1.Networks{
+									Workers: "10.200.0.0/19",
+								},
+							}),
+						},
+						Workers: []gardencorev1beta1.Worker{
+							{
+								Name:  "worker",
+								Zones: []string{"zone2", "zone1"},
+							},
+						},
+					},
 				},
 				Status: gardencorev1beta1.ShootStatus{
 					TechnicalID: technicalID,
@@ -237,6 +264,7 @@ var _ = Describe("ValuesProvider", func() {
 				"tenantName": []byte(tenantName),
 				"username":   []byte(`username`),
 				"password":   []byte(`password`),
+				"authURL":    []byte(`authURL`),
 			},
 		}
 
@@ -376,6 +404,7 @@ var _ = Describe("ValuesProvider", func() {
 							},
 						},
 					},
+					nil,
 				)
 
 				expectedValues = utils.MergeMaps(configChartValues, map[string]interface{}{
@@ -442,6 +471,7 @@ var _ = Describe("ValuesProvider", func() {
 							},
 						},
 					},
+					nil,
 				)
 
 				expectedValues = utils.MergeMaps(configChartValues, map[string]interface{}{
@@ -600,15 +630,8 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
-					openstack.CSIDriverManila: utils.MergeMaps(enabledFalse, map[string]interface{}{
-						"csimanila": map[string]interface{}{
-							"clusterID": namespace,
-						},
-						"pspDisabled": false,
-					}),
-					openstack.CSIDriverNFS: utils.MergeMaps(enabledFalse, map[string]interface{}{
-						"pspDisabled": false,
-					}),
+					openstack.CSIDriverManila: enabledFalse,
+					openstack.CSIDriverNFS:    enabledFalse,
 				}))
 			})
 
@@ -636,12 +659,28 @@ var _ = Describe("ValuesProvider", func() {
 					}),
 					openstack.CSIDriverManila: utils.MergeMaps(enabledTrue, map[string]interface{}{
 						"csimanila": map[string]interface{}{
-							"clusterID": namespace,
+							"clusterID": "test",
+						},
+						"openstack": map[string]interface{}{
+							"projectName":                 "tenant-name",
+							"userName":                    "username",
+							"password":                    "password",
+							"applicationCredentialID":     "",
+							"applicationCredentialName":   "",
+							"availabilityZones":           []string{"zone1", "zone2"},
+							"authURL":                     "authURL",
+							"region":                      "europe",
+							"applicationCredentialSecret": "",
+							"shareClient":                 "10.200.0.0/19",
+							"shareNetworkID":              "1111-2222-3333-4444",
+							"domainName":                  "domain-name",
 						},
 						"pspDisabled": false,
+						"vpaEnabled":  true,
 					}),
 					openstack.CSIDriverNFS: utils.MergeMaps(enabledTrue, map[string]interface{}{
 						"pspDisabled": false,
+						"vpaEnabled":  true,
 					}),
 				}))
 			})
@@ -676,15 +715,8 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": false,
 					}),
-					openstack.CSIDriverManila: utils.MergeMaps(enabledFalse, map[string]interface{}{
-						"csimanila": map[string]interface{}{
-							"clusterID": namespace,
-						},
-						"pspDisabled": false,
-					}),
-					openstack.CSIDriverNFS: utils.MergeMaps(enabledFalse, map[string]interface{}{
-						"pspDisabled": false,
-					}),
+					openstack.CSIDriverManila: enabledFalse,
+					openstack.CSIDriverNFS:    enabledFalse,
 				}))
 			})
 			It("should return correct shoot control plane chart when PodSecurityPolicy admission plugin is disabled in the shoot", func() {
@@ -716,15 +748,8 @@ var _ = Describe("ValuesProvider", func() {
 						},
 						"pspDisabled": true,
 					}),
-					openstack.CSIDriverManila: utils.MergeMaps(enabledFalse, map[string]interface{}{
-						"csimanila": map[string]interface{}{
-							"clusterID": namespace,
-						},
-						"pspDisabled": true,
-					}),
-					openstack.CSIDriverNFS: utils.MergeMaps(enabledFalse, map[string]interface{}{
-						"pspDisabled": true,
-					}),
+					openstack.CSIDriverManila: enabledFalse,
+					openstack.CSIDriverNFS:    enabledFalse,
 				}))
 			})
 		})

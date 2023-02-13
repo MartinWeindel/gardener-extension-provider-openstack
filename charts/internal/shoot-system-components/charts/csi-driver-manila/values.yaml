@@ -7,13 +7,27 @@ images:
   csi-snapshotter: image-repository:image-tag
   csi-resizer: image-repository:image-tag
 
-socketPath: /csi/csi.sock
+vpaEnabled: false
 pspDisabled: false
 dnsPolicy: ClusterFirstWithHostNet # available values: Default, ClusterFirstWithHostNet, ClusterFirst
 timeout: 3m
 
-node:
-  vpaEnabled: true
+openstack:
+  availabilityZones:
+    - zone1
+    - zone2
+  shareNetworkID: shareNetworkIDValue
+  shareClient: 10.180.0.0/16
+  shareProtocol: NFS
+  authURL: authURLValue
+  region: regionValue
+  domainName: domainNameValue
+  projectName: projectNameValue
+  userName: userNameValue
+  password: userNameValue
+  #applicationCredentialID: applicationCredentialIDValue
+  #applicationCredentialSecret: applicationCredentialSecretValue
+
 
 resources:
   driverController:
@@ -97,14 +111,22 @@ shareProtocols:
     fwdNodePluginEndpoint:
       dir: /var/lib/kubelet/plugins/csi-nfsplugin
       sockFile: csi.sock
-    livenessProbe:
-      healthPort: 24913
+    node:
+      livenessProbe:
+        healthPort: 24913
+    controller:
+      livenessProbe:
+        healthPort: 11950
   # - protocolSelector: CEPHFS
   #   fwdNodePluginEndpoint:
   #     dir: /var/lib/kubelet/plugins/cephfs.csi.ceph.com
   #     sockFile: csi.sock
-  #  livenessProbe:
-  #    healthPort: 24957
+  #   node:
+  #     livenessProbe:
+  #       healthPort: 24957
+  #   controller:
+  #     livenessProbe:
+  #       healthPort: 11951
 
 # CSI Manila spec
 csimanila:
@@ -118,9 +140,10 @@ csimanila:
         }
       }
 
+  topologyAwarenessEnabled: false
   # Availability zone for each node. topologyAwarenessEnabled must be set to true for this option to have any effect.
   # If your Kubernetes cluster runs atop of Nova and want to use Nova AZs as AZs for the nodes of the cluster, uncomment the line below:
-  nodeAZ: "$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)"
+  #nodeAZ: "$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)"
 
   # You may set ID of the cluster where manila-csi is deployed. This value will be appended
   # to share metadata in newly provisioned shares as `manila.csi.openstack.org/cluster=<cluster ID>`.

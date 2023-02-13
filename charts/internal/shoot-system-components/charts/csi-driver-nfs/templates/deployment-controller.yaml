@@ -29,7 +29,6 @@ spec:
         app: csi
         role: driver-nfs-controller
     spec:
-      automountServiceAccountToken: false
       priorityClassName: system-node-critical
       hostNetwork: true  # controller also needs to mount nfs to create dir
       dnsPolicy: {{ .Values.dnsPolicy }}
