@@ -14,12 +14,12 @@ spec:
   - SYS_ADMIN
   volumes:
   - hostPath
-  - projected
   - secret
+  - configMap
   hostNetwork: true
   hostPorts:
-  - max: 9808
-    min: 9808
+  - min: 24913
+    max: 24914
   allowedHostPaths:
   - pathPrefix: /var/lib/kubelet
   - pathPrefix: /dev
@@ -33,7 +33,6 @@ spec:
     rule: RunAsAny
   readOnlyRootFilesystem: false
 ---
-# TODO check
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
@@ -48,12 +47,7 @@ spec:
     - SYS_ADMIN
   volumes:
     - hostPath
-    - projected
     - secret
-  hostNetwork: true
-  hostPorts:
-    - max: 9808
-      min: 9808
   allowedHostPaths:
     - pathPrefix: /var/lib/kubelet
     - pathPrefix: /dev
