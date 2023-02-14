@@ -127,7 +127,7 @@ spec:
             - --leader-election-namespace={{ $.Release.Namespace }}
             - --timeout={{ $.Values.timeout }}
             - --handle-volume-inuse-error=false
-            - --v=5
+            - --v=3
 {{- if $.Values.resources.resizer }}
           resources:
 {{ toYaml $.Values.resources.resizer | indent 12 }}
