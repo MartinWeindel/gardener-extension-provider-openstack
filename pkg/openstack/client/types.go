@@ -32,6 +32,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharenetworks"
 )
 
 // OpenstackClientFactory implements a factory that can construct clients for Openstack services.
@@ -59,6 +60,11 @@ type NetworkingClient struct {
 	client *gophercloud.ServiceClient
 }
 
+// SharedFileSystemClient is a client for the SharedFileSystem service.
+type SharedFileSystemClient struct {
+	client *gophercloud.ServiceClient
+}
+
 // Option can be passed to Factory implementations to modify the produced clients.
 type Option func(opts gophercloud.EndpointOpts) gophercloud.EndpointOpts
 
@@ -68,6 +74,7 @@ type Factory interface {
 	Storage(options ...Option) (Storage, error)
 	DNS(options ...Option) (DNS, error)
 	Networking(options ...Option) (Networking, error)
+	SharedFileSystem(options ...Option) (SharedFileSystem, error)
 }
 
 // Storage describes the operations of a client interacting with OpenStack's ObjectStorage service.
@@ -151,6 +158,17 @@ type Networking interface {
 	// Ports
 	GetPort(portID string) (*ports.Port, error)
 	GetRouterInterfacePort(routerID string) (*ports.Port, error)
+}
+
+// Networking describes the operations of a client interacting with OpenStack's Networking service.
+type SharedFileSystem interface {
+	// ShareNetwork
+	CreateShareNetwork(opts sharenetworks.CreateOpts) (*sharenetworks.ShareNetwork, error)
+	ListShareNetworks(listOpts sharenetworks.ListOpts) ([]sharenetworks.ShareNetwork, error)
+	UpdateShareNetwork(networkID string, opts sharenetworks.UpdateOpts) (*sharenetworks.ShareNetwork, error)
+	GetShareNetwork(networkID string) (*sharenetworks.ShareNetwork, error)
+	GetShareNetworksByName(name string) ([]sharenetworks.ShareNetwork, error)
+	DeleteShareNetwork(networkID string) error
 }
 
 // FactoryFactory creates instances of Factory.

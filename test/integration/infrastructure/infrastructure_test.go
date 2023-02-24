@@ -36,6 +36,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharenetworks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -68,6 +69,11 @@ const (
 const (
 	vpcCIDR = "10.250.0.0/16"
 )
+
+type testOptions struct {
+	flowUsage          flowUsage
+	createShareNetwork bool
+}
 
 var (
 	authURL          = flag.String("auth-url", "", "Authorization URL for openstack")
@@ -275,6 +281,31 @@ var _ = Describe("Infrastructure tests", func() {
 			})
 
 			providerConfig := newProviderConfig(*routerID, nil)
+			cloudProfileConfig := newCloudProfileConfig(openstackClient.Region, openstackClient.AuthURL)
+
+			err = runTest(ctx, log, c, namespace, providerConfig, decoder, openstackClient, cloudProfileConfig, fuUseFlow)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should successfully create and delete with share network (flow)", func() {
+			namespace, err := generateNamespaceName()
+			Expect(err).NotTo(HaveOccurred())
+
+			cloudRouterName := namespace + "-cloud-router"
+
+			routerID, err := prepareNewRouter(ctx, log, cloudRouterName, openstackClient)
+			Expect(err).NotTo(HaveOccurred())
+
+			var cleanupHandle framework.CleanupActionHandle
+			cleanupHandle = framework.AddCleanupAction(func() {
+				err := teardownRouter(ctx, log, *routerID, openstackClient)
+				Expect(err).NotTo(HaveOccurred())
+
+				framework.RemoveCleanupAction(cleanupHandle)
+			})
+
+			providerConfig := newProviderConfig(*routerID, nil)
+			providerConfig.Networks.ShareNetwork = &openstackv1alpha1.ShareNetwork{Enabled: true}
 			cloudProfileConfig := newCloudProfileConfig(openstackClient.Region, openstackClient.AuthURL)
 
 			err = runTest(ctx, log, c, namespace, providerConfig, decoder, openstackClient, cloudProfileConfig, fuUseFlow)
@@ -848,6 +879,18 @@ func verifyCreation(
 	keyPair, err := keypairs.Get(openstackClient.ComputeClient, infraStatus.Node.KeyName).Extract()
 	Expect(err).NotTo(HaveOccurred())
 	infrastructureIdentifier.keyPair = &keyPair.Name
+
+	// share network is created
+	if providerConfig.Networks.ShareNetwork != nil && providerConfig.Networks.ShareNetwork.Enabled {
+		Expect(infraStatus.Networks.ShareNetwork).NotTo(BeNil())
+		Expect(infraStatus.Networks.ShareNetwork.ID).NotTo(BeEmpty())
+		Expect(infraStatus.Networks.ShareNetwork.Name).To(Equal(infra.Namespace))
+		sharenetwork, err := sharenetworks.Get(openstackClient.ShareFileSystemClient, infraStatus.Networks.ShareNetwork.ID).Extract()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sharenetwork.Name).To(Equal(infraStatus.Networks.ShareNetwork.Name))
+	} else {
+		Expect(infraStatus.Networks.ShareNetwork).To(BeNil())
+	}
 
 	return infrastructureIdentifier
 }

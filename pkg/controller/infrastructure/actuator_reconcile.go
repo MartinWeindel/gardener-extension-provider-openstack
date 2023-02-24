@@ -251,6 +251,14 @@ func computeProviderStatusFromFlowState(config *api.InfrastructureConfig, state 
 		}
 	}
 
+	shareNetworkID := shared.ValidValue(state.Data[infraflow.IdentifierShareNetwork])
+	if shareNetworkID != "" {
+		status.Networks.ShareNetwork = &openstackv1alpha1.ShareNetworkStatus{
+			ID:   shareNetworkID,
+			Name: shared.ValidValue(state.Data[infraflow.NameShareNetwork]),
+		}
+	}
+
 	secGroupID := shared.ValidValue(state.Data[infraflow.IdentifierSecGroup])
 	if secGroupID != "" {
 		status.SecurityGroups = []openstackv1alpha1.SecurityGroup{

@@ -50,13 +50,16 @@ func (c *FlowContext) buildDeleteGraph() *flow.Graph {
 	deleteRouterInterface := c.AddTask(g, "delete router interface",
 		c.deleteRouterInterface,
 		Timeout(defaultTimeout))
+	deleteShareNetwork := c.AddTask(g, "delete share network",
+		c.deleteShareNetwork,
+		Timeout(defaultTimeout))
 	// subnet deletion only needed if network is given by spec
 	_ = c.AddTask(g, "delete subnet",
 		c.deleteSubnet,
-		DoIf(!needToDeleteNetwork), Timeout(defaultTimeout), Dependencies(deleteRouterInterface))
+		DoIf(!needToDeleteNetwork), Timeout(defaultTimeout), Dependencies(deleteShareNetwork, deleteRouterInterface))
 	_ = c.AddTask(g, "delete network",
 		c.deleteNetwork,
-		DoIf(needToDeleteNetwork), Timeout(defaultTimeout), Dependencies(deleteRouterInterface))
+		DoIf(needToDeleteNetwork), Timeout(defaultTimeout), Dependencies(deleteShareNetwork, deleteRouterInterface))
 	_ = c.AddTask(g, "delete router",
 		c.deleteRouter,
 		DoIf(needToDeleteRouter), Timeout(defaultTimeout), Dependencies(deleteRouterInterface))
@@ -125,6 +128,35 @@ func (c *FlowContext) deleteSubnet(ctx context.Context) error {
 		}
 	}
 	c.state.SetAsDeleted(IdentifierSubnet)
+	return nil
+}
+
+func (c *FlowContext) deleteShareNetwork(ctx context.Context) error {
+	if c.state.IsAlreadyDeleted(IdentifierShareNetwork) {
+		return nil
+	}
+	if err := c.ensureDeletedShareNetwork(ctx); err != nil {
+		return err
+	}
+	c.state.SetAsDeleted(IdentifierShareNetwork)
+	c.state.SetAsDeleted(NameShareNetwork)
+	return nil
+}
+
+func (c *FlowContext) ensureDeletedShareNetwork(ctx context.Context) error {
+	log := c.LogFromContext(ctx)
+	current, err := c.findExistingShareNetwork()
+	if err != nil {
+		return err
+	}
+	if current != nil {
+		log.Info("deleting...", "sharenetwork", current.ID)
+		if err := c.sfsAccess.DeleteShareNetwork(current.ID); err != nil {
+			return err
+		}
+	}
+	c.state.Set(IdentifierShareNetwork, "")
+	c.state.Set(NameShareNetwork, "")
 	return nil
 }
 

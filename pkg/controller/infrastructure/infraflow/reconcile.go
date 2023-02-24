@@ -26,6 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharenetworks"
 )
 
 const (
@@ -62,6 +63,10 @@ func (c *FlowContext) buildReconcileGraph() *flow.Graph {
 	_ = c.AddTask(g, "ensure router interface",
 		c.ensureRouterInterface,
 		Timeout(defaultTimeout), Dependencies(ensureRouter, ensureSubnet))
+
+	_ = c.AddTask(g, "ensure share network",
+		c.ensureShareNetwork,
+		Timeout(defaultTimeout), Dependencies(ensureNetwork, ensureSubnet))
 
 	_ = c.AddTask(g, "ensure security group",
 		c.ensureSecGroup,
@@ -317,6 +322,53 @@ func (c *FlowContext) getSubnetID() (*string, error) {
 		return &subnet.ID, nil
 	}
 	return nil, nil
+}
+
+func (c *FlowContext) ensureShareNetwork(ctx context.Context) error {
+	log := c.LogFromContext(ctx)
+	if c.config.Networks.ShareNetwork == nil || !c.config.Networks.ShareNetwork.Enabled {
+		return c.ensureDeletedShareNetwork(ctx)
+	}
+
+	networkID, err := c.getNetworkID()
+	if err != nil {
+		return nil
+	}
+	subnetID, err := c.getSubnetID()
+	if err != nil {
+		return nil
+	}
+	desired := &sharenetworks.ShareNetwork{
+		NeutronNetID:    *networkID,
+		NeutronSubnetID: *subnetID,
+		Name:            c.namespace,
+		Description:     "created by gardener-extension-provider-openstack",
+	}
+
+	current, err := c.findExistingShareNetwork()
+	if err != nil {
+		return nil
+	}
+	if current != nil {
+		c.state.Set(IdentifierShareNetwork, current.ID)
+		c.state.Set(NameShareNetwork, current.Name)
+		if _, err := c.sfsAccess.UpdateShareNetwork(desired, current); err != nil {
+			return err
+		}
+	} else {
+		log.Info("creating...")
+		created, err := c.sfsAccess.CreateShareNetwork(desired)
+		if err != nil {
+			return err
+		}
+		c.state.Set(IdentifierShareNetwork, created.ID)
+		c.state.Set(NameShareNetwork, created.Name)
+	}
+	return nil
+}
+
+func (c *FlowContext) findExistingShareNetwork() (*sharenetworks.ShareNetwork, error) {
+	return findExisting(c.state.Get(IdentifierShareNetwork), c.namespace, c.sfsAccess.GetShareNetworkByID, c.sfsAccess.GetShareNetworksByName)
 }
 
 type notFoundError struct {

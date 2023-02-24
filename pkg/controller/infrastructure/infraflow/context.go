@@ -35,6 +35,8 @@ const (
 	IdentifierSubnet = "Subnet"
 	// IdentifierFloatingNetwork is the key for the floating network id
 	IdentifierFloatingNetwork = "FloatingNetwork"
+	// IdentifierNetwork is the key for the network id
+	IdentifierShareNetwork = "ShareNetwork"
 	// IdentifierSecGroup is the key for the security group id
 	IdentifierSecGroup = "SecurityGroup"
 
@@ -44,6 +46,8 @@ const (
 	NameFloatingPoolSubnet = "FloatingPoolSubnetName"
 	// NameNetwork is the name of the network
 	NameNetwork = "NetworkName"
+	// NameShareNetwork is the name of the share network
+	NameShareNetwork = "ShareNetworkName"
 	// NameKeyPair is the key for the name of the EC2 key pair resource
 	NameKeyPair = "KeyPair"
 	// NameSecGroup is the name of the security group
@@ -69,6 +73,7 @@ type FlowContext struct {
 	networking         osclient.Networking
 	access             access.NetworkingAccess
 	compute            osclient.Compute
+	sfsAccess          access.ShareFileSystemAccess
 }
 
 // NewFlowContext creates a new FlowContext object
@@ -86,13 +91,21 @@ func NewFlowContext(log logr.Logger, clientFactory osclient.Factory,
 	if err != nil {
 		return nil, fmt.Errorf("creating networking client failed: %w", err)
 	}
-	access, err := access.NewNetworkingAccess(networking, log)
+	networkingAccess, err := access.NewNetworkingAccess(networking, log)
 	if err != nil {
 		return nil, fmt.Errorf("creating networking access failed: %w", err)
 	}
 	compute, err := clientFactory.Compute(osclient.WithRegion(infra.Spec.Region))
 	if err != nil {
 		return nil, fmt.Errorf("creating compute client failed: %w", err)
+	}
+	shareFileSystem, err := clientFactory.SharedFileSystem(osclient.WithRegion(infra.Spec.Region))
+	if err != nil {
+		return nil, fmt.Errorf("creating share file system client failed: %w", err)
+	}
+	sfsAccess, err := access.NewShareFileSystemAccess(shareFileSystem, log)
+	if err != nil {
+		return nil, fmt.Errorf("creating share file system  access failed: %w", err)
 	}
 
 	flowContext := &FlowContext{
@@ -103,8 +116,9 @@ func NewFlowContext(log logr.Logger, clientFactory osclient.Factory,
 		config:             config,
 		cloudProfileConfig: cloudProfileConfig,
 		networking:         networking,
-		access:             access,
+		access:             networkingAccess,
 		compute:            compute,
+		sfsAccess:          sfsAccess,
 	}
 	return flowContext, nil
 }

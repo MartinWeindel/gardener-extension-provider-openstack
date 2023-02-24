@@ -26,17 +26,18 @@ import (
 
 // OpenstackClient used to perform openstack operations
 type OpenstackClient struct {
-	AuthURL          string
-	DomainName       string
-	FloatingPoolName string
-	Password         string
-	Region           string
-	TenantName       string
-	UserName         string
-	ProviderClient   *gophercloud.ProviderClient
-	ComputeClient    *gophercloud.ServiceClient
-	NetworkingClient *gophercloud.ServiceClient
-	IdentityClient   *gophercloud.ServiceClient
+	AuthURL               string
+	DomainName            string
+	FloatingPoolName      string
+	Password              string
+	Region                string
+	TenantName            string
+	UserName              string
+	ProviderClient        *gophercloud.ProviderClient
+	ComputeClient         *gophercloud.ServiceClient
+	NetworkingClient      *gophercloud.ServiceClient
+	IdentityClient        *gophercloud.ServiceClient
+	ShareFileSystemClient *gophercloud.ServiceClient
 }
 
 // NewOpenstackClient creates an openstack struct
@@ -74,9 +75,15 @@ func NewOpenstackClient(authURL, domainName, floatingPoolName, password, region,
 		return nil, err
 	}
 
+	shareFileSystemClient, err := openstackClient.createShareFileSystemClient()
+	if err != nil {
+		return nil, err
+	}
+
 	openstackClient.ComputeClient = computeClient
 	openstackClient.NetworkingClient = networkingClient
 	openstackClient.IdentityClient = identityClient
+	openstackClient.ShareFileSystemClient = shareFileSystemClient
 
 	return openstackClient, nil
 }
@@ -139,9 +146,17 @@ func (o *OpenstackClient) createNetworkingClient() (*gophercloud.ServiceClient, 
 	})
 }
 
-// createIdentityClient is used to create a networking client
+// createIdentityClient is used to create a identity client
 func (o *OpenstackClient) createIdentityClient() (*gophercloud.ServiceClient, error) {
 	return openstack.NewIdentityV2(o.ProviderClient, gophercloud.EndpointOpts{
+		Region:       o.Region,
+		Availability: gophercloud.AvailabilityPublic,
+	})
+}
+
+// createShareFileSystemClient is used to create a share file system client
+func (o *OpenstackClient) createShareFileSystemClient() (*gophercloud.ServiceClient, error) {
+	return openstack.NewSharedFileSystemV2(o.ProviderClient, gophercloud.EndpointOpts{
 		Region:       o.Region,
 		Availability: gophercloud.AvailabilityPublic,
 	})
